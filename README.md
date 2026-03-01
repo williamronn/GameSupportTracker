@@ -54,7 +54,7 @@ Télécharge le `.exe` depuis la page [Releases](https://github.com/EnzoBagnis/A
 > Le premier check crée la référence. Les changements apparaissent à partir du second.
 
 **Où est sauvegardé le cache ?**
-> Dans `archipelago_cache.json`, automatiquement créé dans le même dossier que le `.exe`. Ne le supprime pas, sinon tu perds la comparaison.
+> Sauvegardé automatiquement dans `%APPDATA%\ArchipelagoTracker\archipelago_cache.json` (ex: `C:\Users\Enzo\AppData\Roaming\ArchipelagoTracker\`). Ne le supprime pas, sinon tu perds la comparaison.
 
 **Besoin d'installer Python ou quoi que ce soit ?**
 > Non. Le `.exe` est autonome, tout est inclus.

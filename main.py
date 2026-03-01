@@ -20,10 +20,14 @@ TABS = {
 }
 
 def get_cache_path():
-    if getattr(sys, 'frozen', False):
-        base = os.path.dirname(sys.executable)
+    # Sauvegarde dans %APPDATA%\ArchipelagoTracker sur Windows
+    # Sauvegarde dans ~/.config/ArchipelagoTracker sur Linux/macOS
+    if os.name == "nt":
+        base = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")),
+                            "ArchipelagoTracker")
     else:
-        base = os.path.dirname(os.path.abspath(__file__))
+        base = os.path.join(os.path.expanduser("~"), ".config", "ArchipelagoTracker")
+    os.makedirs(base, exist_ok=True)
     return os.path.join(base, "archipelago_cache.json")
 
 CACHE_FILE = get_cache_path()
