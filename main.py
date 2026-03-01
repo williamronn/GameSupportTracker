@@ -41,6 +41,20 @@ def get_cache_path():
 
 CACHE_FILE = get_cache_path()
 
+def get_settings_path():
+    return os.path.join(os.path.dirname(get_cache_path()), "settings.json")
+
+def load_settings():
+    p = get_settings_path()
+    if os.path.exists(p):
+        with open(p, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return {}
+
+def save_settings(data):
+    with open(get_settings_path(), "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
 SKIP_NAMES = {
     "Game", "Do not sort",
     "Headers are locked to prevent auto-sorts from being done",
@@ -114,8 +128,10 @@ def extract_urls(text):
     return URL_PATTERN.findall(text)
 
 def extract_github_repo(notes, apworld=""):
-    """Extracts (owner, repo) from GitHub URLs in apworld then notes."""
-    for text in (apworld, notes):   # apworld column takes priority
+    """Extracts (owner, repo) from GitHub URLs in apworld then notes.
+    Ignores pull request URLs (/pull/) as they don't have releases.
+    """
+    for text in (apworld, notes):
         if not text:
             continue
         for url in extract_urls(text):
@@ -125,10 +141,13 @@ def extract_github_repo(notes, apworld=""):
                 repo  = m.group(2)
                 if repo.endswith(".git"):
                     repo = repo[:-4]
+                # Skip pull request URLs — no releases there
+                if "/pull/" in url:
+                    continue
                 return owner, repo
     return None
 
-def fetch_github_release(owner, repo):
+def fetch_github_release(owner, repo, token=""):
     """Returns {tag, date, url} for the latest release, or None."""
     try:
         api_url = f"https://api.github.com/repos/{owner}/{repo}/releases/latest"
@@ -136,6 +155,8 @@ def fetch_github_release(owner, repo):
             "User-Agent": "ArchipelagoTracker/1.0",
             "Accept":     "application/vnd.github+json",
         }
+        if token:
+            headers["Authorization"] = "Bearer " + token
         r = requests.get(api_url, timeout=10, headers=headers)
         if r.status_code == 404:
             r2 = requests.get(
@@ -242,6 +263,7 @@ class ArchipelagoTracker(tk.Tk):
         self._all_games      = {}
         self._poptracker_set = set()
         self._releases       = {}
+        self._github_token   = load_settings().get("github_token", "")
         self._filter_var     = tk.StringVar()
         self._tab_var        = tk.StringVar(value="Playable Worlds")
         self._status_filter  = tk.StringVar(value="All")
@@ -278,6 +300,12 @@ class ArchipelagoTracker(tk.Tk):
                                     cursor="hand2", activebackground=ACCENT2,
                                     activeforeground="white")
         self._check_btn.pack(side="right")
+
+        tk.Button(top, text="⚙", command=self._open_settings,
+                  bg=BG, fg=TEXT_DIM,
+                  font=("Courier New", 12), relief="flat",
+                  padx=8, pady=4, cursor="hand2",
+                  activebackground=BG3, activeforeground=TEXT).pack(side="right", padx=(0, 4))
 
         tk.Frame(self, bg=BORDER, height=1).pack(fill="x")
 
@@ -539,7 +567,7 @@ class ArchipelagoTracker(tk.Tk):
             total = sum(len(v) for k, v in cache.items()
                         if k not in ("_timestamp", "_poptracker", "_releases"))
             self._set_status(
-                f"Cache chargé — {total} jeux")
+                f"Cache chargé — {total} jeux · {len(self._poptracker_set)} avec PopTracker")
         else:
             self._set_status("Aucun cache — Cliquez sur Vérifier !")
 
@@ -604,7 +632,7 @@ class ArchipelagoTracker(tk.Tk):
                             new_tab_rels[game_name] = old_tab_rels[game_name]
                         continue
                     owner, repo_name = repo
-                    release = fetch_github_release(owner, repo_name)
+                    release = fetch_github_release(owner, repo_name, self._github_token)
                     if not release:
                         if game_name in old_tab_rels:
                             new_tab_rels[game_name] = old_tab_rels[game_name]
@@ -647,7 +675,7 @@ class ArchipelagoTracker(tk.Tk):
         self._refresh_changes()
         n  = len(self._changes)
         pt = len(self._poptracker_set)
-        self._set_status(f"✓ Check terminé — {n} changement(s) · {pt} jeux avec PopTracker")
+        self._set_status(f"✓ Check terminé — {n} changement(s)")
 
     # ── Refresh Changes Panel ─────────────────────────────────────────────────
     def _refresh_changes(self):
@@ -851,6 +879,83 @@ class ArchipelagoTracker(tk.Tk):
             return host + path
         except Exception:
             return url[:50] + "…"
+
+    # ── Settings Window ───────────────────────────────────────────────────────
+    def _open_settings(self):
+        win = tk.Toplevel(self)
+        win.title("Paramètres")
+        win.configure(bg=BG)
+        win.resizable(False, False)
+        win.grab_set()
+
+        tk.Frame(win, bg=ACCENT, height=3).pack(fill="x")
+
+        pad = tk.Frame(win, bg=BG, padx=24, pady=20)
+        pad.pack(fill="both", expand=True)
+
+        tk.Label(pad, text="PARAMÈTRES", bg=BG, fg=ACCENT2,
+                 font=("Courier New", 11, "bold")).pack(anchor="w", pady=(0, 16))
+
+        # ── GitHub Token ──────────────────────────────────────────────────
+        tk.Frame(pad, bg=BORDER, height=1).pack(fill="x", pady=(0, 12))
+
+        tk.Label(pad, text="GitHub Personal Access Token",
+                 bg=BG, fg=TEXT, font=("Courier New", 9, "bold")).pack(anchor="w")
+        tk.Label(pad,
+                 text="Nécessaire pour dépasser la limite de 60 req/h de l'API GitHub.\n"
+                      "Token requis : scope 'public_repo' (lecture seule suffit).",
+                 bg=BG, fg=TEXT_DIM, font=("Courier New", 8),
+                 justify="left").pack(anchor="w", pady=(2, 6))
+
+        token_var = tk.StringVar(value=self._github_token)
+        token_frame = tk.Frame(pad, bg=BG)
+        token_frame.pack(fill="x")
+
+        token_entry = tk.Entry(token_frame, textvariable=token_var,
+                               bg=BG3, fg=TEXT, insertbackground=TEXT,
+                               relief="flat", font=("Courier New", 9),
+                               width=48, show="•")
+        token_entry.pack(side="left", ipady=5, padx=(0, 6))
+
+        # Toggle visibility
+        show_var = tk.BooleanVar(value=False)
+        def _toggle_show():
+            token_entry.config(show="" if show_var.get() else "•")
+        tk.Checkbutton(token_frame, text="Afficher", variable=show_var,
+                       command=_toggle_show,
+                       bg=BG, fg=TEXT_DIM, selectcolor=BG3,
+                       activebackground=BG, font=("Courier New", 8)).pack(side="left")
+
+        # Link to create token
+        lnk = tk.Label(pad,
+                        text="→ Créer un token sur github.com/settings/tokens",
+                        bg=BG, fg=ACCENT2, font=("Courier New", 8, "underline"),
+                        cursor="hand2")
+        lnk.pack(anchor="w", pady=(4, 0))
+        lnk.bind("<Button-1>", lambda e: webbrowser.open(
+            "https://github.com/settings/tokens/new?description=ArchipelagoTracker&scopes=public_repo"))
+
+        tk.Frame(pad, bg=BORDER, height=1).pack(fill="x", pady=(16, 12))
+
+        # ── Buttons ───────────────────────────────────────────────────────
+        btn_row = tk.Frame(pad, bg=BG)
+        btn_row.pack(fill="x")
+
+        def _save():
+            self._github_token = token_var.get().strip()
+            s = load_settings()
+            s["github_token"] = self._github_token
+            save_settings(s)
+            win.destroy()
+
+        tk.Button(btn_row, text="Enregistrer", command=_save,
+                  bg=ACCENT, fg="white", font=("Courier New", 9, "bold"),
+                  relief="flat", padx=14, pady=5, cursor="hand2",
+                  activebackground=ACCENT2, activeforeground="white").pack(side="right")
+        tk.Button(btn_row, text="Annuler", command=win.destroy,
+                  bg=BG3, fg=TEXT_DIM, font=("Courier New", 9),
+                  relief="flat", padx=14, pady=5, cursor="hand2",
+                  activebackground=BG3, activeforeground=TEXT).pack(side="right", padx=(0, 8))
 
     # ── Status bar ────────────────────────────────────────────────────────────
     def _set_status(self, msg):
