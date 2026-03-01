@@ -260,7 +260,7 @@ class ArchipelagoTracker(tk.Tk):
 
         for tab in TABS.keys():
             rb = tk.Radiobutton(fbar, text=tab, variable=self._tab_var,
-                                value=tab, command=self._refresh_table,
+                                value=tab, command=self._on_tab_change,
                                 bg=BG3, fg=TEXT, selectcolor=BG3,
                                 activebackground=BG3, activeforeground=ACCENT2,
                                 font=("Courier New", 9, "bold"),
@@ -347,6 +347,9 @@ class ArchipelagoTracker(tk.Tk):
             self._tree.tag_configure(status, foreground=color)
         self._tree.tag_configure("Other", foreground=TEXT_DIM)
         self._tree.tag_configure("new",   background="#1a2e1a")
+        # Tags PopTracker colorés (pour Core Verified)
+        self._tree.tag_configure("pt_yes", foreground=GREEN)
+        self._tree.tag_configure("pt_no",  foreground=RED)
 
         self._tree.bind("<<TreeviewSelect>>", self._on_row_select)
 
@@ -382,9 +385,38 @@ class ArchipelagoTracker(tk.Tk):
         self._links_frame = tk.Frame(detail, bg=BG2, padx=14, pady=4)
         self._links_frame.pack(fill="x")
 
+    # ── Tab Change ────────────────────────────────────────────────────────────
+    def _on_tab_change(self):
+        """Change d'onglet : adapte les colonnes visibles et rafraîchit."""
+        # Reset du tri pour éviter confusion entre onglets
+        self._sort_col = None
+        self._sort_asc = None
+        self._update_heading_icons()
+        self._apply_columns()
+        self._refresh_table()
+
+    def _apply_columns(self):
+        """Affiche/masque la colonne 'status' selon l'onglet actif."""
+        is_core = self._tab_var.get() == "Core Verified"
+        if is_core:
+            # Masque 'status', élargit 'game' et 'notes'
+            self._tree.column("status", width=0, minwidth=0, stretch=False)
+            self._tree.heading("status", text="")
+            self._tree.column("game",   width=280, minwidth=140)
+            self._tree.column("notes",  width=530, minwidth=180)
+        else:
+            self._tree.column("status", width=120, minwidth=90, stretch=True)
+            self._tree.heading("status", text="Statut" + SORT_ICONS[
+                self._sort_asc if self._sort_col == "status" else None])
+            self._tree.column("game",   width=240, minwidth=140)
+            self._tree.column("notes",  width=480, minwidth=180)
+
     # ── Sort Logic ────────────────────────────────────────────────────────────
     def _on_sort_click(self, col):
         """Cycle: défaut → ascendant → descendant → défaut → ..."""
+        # Ignore le tri statut pour Core Verified (colonne masquée)
+        if col == "status" and self._tab_var.get() == "Core Verified":
+            return
         if self._sort_col != col:
             # Nouvelle colonne : reset les autres, démarre en ascendant
             self._sort_col = col
@@ -404,11 +436,13 @@ class ArchipelagoTracker(tk.Tk):
 
     def _update_heading_icons(self):
         """Met à jour les icônes dans les en-têtes."""
+        is_core = self._tab_var.get() == "Core Verified"
         cols_labels = {
             "game":       "Jeu",
-            "status":     "Statut",
             "poptracker": "PopTracker",
         }
+        if not is_core:
+            cols_labels["status"] = "Statut"
         for col, label in cols_labels.items():
             if self._sort_col == col:
                 icon = SORT_ICONS[self._sort_asc]
@@ -440,6 +474,7 @@ class ArchipelagoTracker(tk.Tk):
     # ── Initial Load ──────────────────────────────────────────────────────────
     def _load_initial(self):
         cache = load_cache()
+        self._apply_columns()
         if cache:
             self._all_games      = cache
             self._poptracker_set = set(cache.get("_poptracker", []))
@@ -598,12 +633,20 @@ class ArchipelagoTracker(tk.Tk):
             filtered.sort(key=lambda x: x[0].lower())
 
         # Insérer dans le Treeview
+        is_core = tab == "Core Verified"
         for name, data, has_pt in filtered:
             status = data.get("status", "")
             notes  = data.get("notes",  "")
             pt_txt = "YES" if has_pt else "NO"
-            tag    = status if status in STATUS_COLORS else "Other"
-            tags   = [tag] + (["new"] if name in new_names else [])
+
+            if is_core:
+                # Couleur sur la colonne PopTracker, pas de couleur statut
+                pt_tag = "pt_yes" if has_pt else "pt_no"
+                tags   = [pt_tag] + (["new"] if name in new_names else [])
+            else:
+                tag  = status if status in STATUS_COLORS else "Other"
+                tags = [tag] + (["new"] if name in new_names else [])
+
             self._tree.insert("", "end",
                               values=(name, status, pt_txt, notes),
                               tags=tags)
