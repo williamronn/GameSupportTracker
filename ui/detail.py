@@ -6,6 +6,7 @@ from config import (
     BG2, BORDER, TEXT, TEXT_DIM, ACCENT2, GREEN, RED, YELLOW, STATUS_COLORS
 )
 from data import match_poptracker, extract_urls
+from lang.l18n import t
 
 URL_PATTERN = re.compile(r'https?://\S+')
 
@@ -24,7 +25,7 @@ def build_detail_panel(parent):
     detail_top.pack(fill="x")
 
     title_lbl = tk.Label(detail_top,
-                         text="Cliquez sur un jeu pour voir les détails",
+                         text=t("detail_placeholder"),
                          bg=BG2, fg=TEXT_DIM,
                          font=("Courier New", 10, "bold"), anchor="w")
     title_lbl.pack(side="left", fill="x", expand=True)
@@ -39,7 +40,7 @@ def build_detail_panel(parent):
 
     detail_rel = tk.Frame(detail, bg=BG2, padx=14, pady=2)
     detail_rel.pack(fill="x")
-    tk.Label(detail_rel, text="📦 Release:", bg=BG2, fg=TEXT_DIM,
+    tk.Label(detail_rel, text=t("detail_release_label"), bg=BG2, fg=TEXT_DIM,
              font=("Courier New", 9), width=12, anchor="w").pack(side="left")
     release_lbl = tk.Label(detail_rel, text="—", bg=BG2,
                            fg=TEXT_DIM, font=("Courier New", 9), anchor="w")
@@ -77,10 +78,10 @@ def update_detail(widgets, name, status, notes, tab, releases, poptracker_set):
     has_pt = match_poptracker(name, poptracker_set)
     if has_pt:
         wiki_url = "https://archipelago.miraheze.org/wiki/" + name.replace(" ", "_")
-        w["pt"].config(text=" PopTracker: YES", fg=GREEN, cursor="hand2")
+        w["pt"].config(text=t("detail_pt_yes"), fg=GREEN, cursor="hand2")
         w["pt"].bind("<Button-1>", lambda e, u=wiki_url: webbrowser.open(u))
     else:
-        w["pt"].config(text=" PopTracker: NO", fg=RED, cursor="")
+        w["pt"].config(text=t("detail_pt_no"), fg=RED, cursor="")
         w["pt"].unbind("<Button-1>")
 
     # Release

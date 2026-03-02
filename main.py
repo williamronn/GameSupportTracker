@@ -18,12 +18,13 @@ from ui.table   import build_filter_bar, build_tree, apply_columns, \
                        update_heading_icons, refresh_table
 from ui.detail  import build_detail_panel, update_detail
 from ui.settings import open_settings
+from lang.l18n import t
 
 
 class ArchipelagoTracker(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Archipelago Tracker")
+        self.title(t("app_title"))
         self.geometry("1150x740")
         self.minsize(900, 600)
         self.configure(bg=BG)
@@ -90,15 +91,15 @@ class ArchipelagoTracker(tk.Tk):
 
         top = tk.Frame(self, bg=BG, pady=16, padx=20)
         top.pack(fill="x")
-        tk.Label(top, text="⬡  ARCHIPELAGO TRACKER",
+        tk.Label(top, text=t("app_title"),
                  bg=BG, fg=TEXT, font=("Courier New", 18, "bold")).pack(side="left")
 
-        self._status_bar = tk.Label(top, text="Prêt", bg=BG, fg=TEXT_DIM,
+        self._status_bar = tk.Label(top, text=t("status_ready"), bg=BG, fg=TEXT_DIM,
                                     font=("Courier New", 10))
         self._status_bar.pack(side="right", padx=10)
 
         self._check_btn = tk.Button(
-            top, text="⟳  Vérifier les mises à jour",
+            top, text=t("btn_check"),
             command=self._start_check,
             bg=ACCENT, fg="white", font=("Courier New", 10, "bold"),
             relief="flat", padx=14, pady=6, cursor="hand2",
@@ -222,22 +223,20 @@ class ArchipelagoTracker(tk.Tk):
             self._refresh_table()
             ts = cache.get("_timestamp", "")
             if ts:
-                self._last_check_lbl.config(text=f"Dernier check: {ts}")
+                self._last_check_lbl.config(text=t("last_check_label", ts=ts))
             total = sum(len(v) for k, v in cache.items()
                         if k not in ("_timestamp", "_poptracker",
                                      "_releases", "_steam_owned"))
-            self._set_status(
-                f"Cache chargé — {total} jeux · "
-                f"{len(self._poptracker_set)} avec PopTracker")
+            self._set_status(t("status_cache_loaded", total=total, pt=len(self._poptracker_set)))
         else:
-            self._set_status("Aucun cache — Cliquez sur Vérifier !")
+            self._set_status(t("status_no_cache"))
 
     # ── Check ──────────────────────────────────────────────────────────────────
     def _start_check(self):
         if self._checking:
             return
         self._checking = True
-        self._check_btn.config(state="disabled", text="⟳  Vérification...")
+        self._check_btn.config(state="disabled", text=t("btn_checking"))
         threading.Thread(target=self._do_check, daemon=True).start()
 
     def _do_check(self):
@@ -249,7 +248,7 @@ class ArchipelagoTracker(tk.Tk):
         rate_limited = False
 
         for tab_name, gid in TABS.items():
-            self._set_status(f"Récupération: {tab_name}...")
+            self._set_status(t("status_fetching_tab", tab=tab_name))
             rows = fetch_tab(tab_name, gid)
             if not rows:
                 new_cache[tab_name]    = cache.get(tab_name, {})
@@ -271,12 +270,12 @@ class ArchipelagoTracker(tk.Tk):
             }
 
             for game, data in added.items():
-                changes.append(("➕", tab_name, game, data["status"], "Ajouté", ""))
+                changes.append(("➕", tab_name, game, data["status"], t("changes_added"), ""))
             for game in removed:
-                changes.append(("➖", tab_name, game, "", "Retiré", ""))
+                changes.append(("➖", tab_name, game, "", t("changes_removed"), ""))
             for game, (before, after) in modified.items():
                 changes.append(("🔄", tab_name, game, after,
-                                 f"{before} → {after}", ""))
+                                 t("change_status_update", before=before, after=after), ""))
 
             new_cache[tab_name] = current
 
@@ -288,8 +287,7 @@ class ArchipelagoTracker(tk.Tk):
                 total = len(current)
                 for idx, (game_name, game_data) in enumerate(current.items()):
                     self._set_status(
-                        f"Releases {tab_name}: {idx+1}/{total}"
-                        f" — {game_name[:28]}...")
+                        t("status_fetching_releases", tab=tab_name, idx=idx+1, total=total, game=game_name))
                     repo = extract_github_repo(
                         game_data.get("notes", ""),
                         game_data.get("apworld", ""))
@@ -314,8 +312,10 @@ class ArchipelagoTracker(tk.Tk):
                     old_tag = old_tab_rels.get(game_name, {}).get("tag", "")
                     new_tag = release.get("tag", "")
                     if new_tag and new_tag != old_tag:
-                        desc = (f"Release: {old_tag} → {new_tag}"
-                                if old_tag else f"Nouvelle release: {new_tag}")
+                        if old_tag:
+                            desc = t("change_release_update", old=old_tag, new=new_tag)
+                        else:
+                            desc = t("change_release_new", tag=new_tag)
                         changes.append((
                             "🏷️", tab_name, game_name, "",
                             desc, release.get("url", ""),
@@ -347,20 +347,17 @@ class ArchipelagoTracker(tk.Tk):
 
     def _on_check_done(self, rate_limited=False):
         self._checking = False
-        self._check_btn.config(state="normal", text="⟳  Vérifier les mises à jour")
+        self._check_btn.config(state="normal", text=t("btn_check"))
         self._last_check_lbl.config(
-            text=f"Dernier check: {self._all_games.get('_timestamp', '')}")
+            text=t("last_check_label", ts=self._all_games.get('_timestamp', '')))
         self._refresh_table()
         self._refresh_changes()
         n  = len(self._changes)
         pt = len(self._poptracker_set)
         if rate_limited:
-            self._set_status(
-                "⚠ Limite GitHub atteinte — releases incomplètes. "
-                "Ajoutez un token dans ⚙ Paramètres.")
+            self._set_status(t("status_rate_limited"))
         else:
-            self._set_status(
-                f"✓ Check terminé — {n} changement(s)")
+            self._set_status(t("status_done", n=n, pt=pt))
 
     # ── Status bar ─────────────────────────────────────────────────────────────
     def _set_status(self, msg):

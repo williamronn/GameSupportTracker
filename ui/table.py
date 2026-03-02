@@ -6,6 +6,7 @@ from config import (
     BG, BG3, ACCENT, ACCENT2, TEXT, TEXT_DIM, BORDER, GREEN, RED
 )
 from data import match_poptracker, _normalize_steam
+from lang.l18n import t
 
 
 def build_filter_bar(parent, app):
@@ -18,7 +19,7 @@ def build_filter_bar(parent, app):
     r1.pack(fill="x")
 
     app._show_left_btn = tk.Button(
-        r1, text="▶ Changements", bg=BG3, fg=TEXT_DIM,
+        r1, text=t("btn_show_changes"), bg=BG3, fg=TEXT_DIM,
         font=("Courier New", 8), relief="flat", cursor="hand2",
         padx=6, pady=2, activebackground="#161b22", activeforeground=TEXT,
         command=app._toggle_left_panel)
@@ -51,26 +52,26 @@ def build_filter_bar(parent, app):
     r2 = tk.Frame(fbar, bg=BG3)
     r2.pack(fill="x", pady=(4, 0))
 
-    tk.Label(r2, text="Statut:", bg=BG3, fg=TEXT_DIM,
+    tk.Label(r2, text=t("filter_status"), bg=BG3, fg=TEXT_DIM,
              font=("Courier New", 9)).pack(side="left", padx=(0, 4))
     ttk.Combobox(r2, textvariable=app._status_filter,
-                 values=["All"] + list(STATUS_COLORS.keys()) + ["Other"],
+                 values=[t("filter_all")] + list(STATUS_COLORS.keys()) + ["Other"],
                  state="readonly", width=13,
                  font=("Courier New", 9)).pack(side="left")
     app._status_filter.trace_add("write", lambda *a: app._refresh_table())
 
-    tk.Label(r2, text="  PopTracker:", bg=BG3, fg=TEXT_DIM,
+    tk.Label(r2, text=t("filter_pt"), bg=BG3, fg=TEXT_DIM,
              font=("Courier New", 9)).pack(side="left", padx=(12, 4))
     ttk.Combobox(r2, textvariable=app._pt_filter,
-                 values=["All", " Disponible", " Non disponible"],
+                 values=[t("filter_all"), t("filter_pt_yes"), t("filter_pt_no")],
                  state="readonly", width=16,
                  font=("Courier New", 9)).pack(side="left")
     app._pt_filter.trace_add("write", lambda *a: app._refresh_table())
 
-    tk.Label(r2, text="  Owned:", bg=BG3, fg=TEXT_DIM,
+    tk.Label(r2, text=t("filter_owned"), bg=BG3, fg=TEXT_DIM,
              font=("Courier New", 9)).pack(side="left", padx=(12, 4))
     ttk.Combobox(r2, textvariable=app._owned_filter,
-                 values=["All", " YES", " NO"],
+                 values=[t("filter_all"), t("filter_owned_yes"), t("filter_owned_no")],
                  state="readonly", width=8,
                  font=("Courier New", 9)).pack(side="left")
     app._owned_filter.trace_add("write", lambda *a: app._refresh_table())
@@ -109,14 +110,14 @@ def build_tree(parent, app):
     tree = ttk.Treeview(inner, columns=cols, show="headings",
                         style="Custom.Treeview")
 
-    tree.heading("game",       text="Jeu" + SORT_ICONS[None], anchor="w",
+    tree.heading("game",       text=t("col_game") + SORT_ICONS[None], anchor="w",
                  command=lambda: app._on_sort_click("game"))
-    tree.heading("status",     text="Statut" + SORT_ICONS[None], anchor="w",
+    tree.heading("status",     text=t("col_status") + SORT_ICONS[None], anchor="w",
                  command=lambda: app._on_sort_click("status"))
-    tree.heading("poptracker", text="PopTracker" + SORT_ICONS[None], anchor="w",
+    tree.heading("poptracker", text=t("col_poptracker") + SORT_ICONS[None], anchor="w",
                  command=lambda: app._on_sort_click("poptracker"))
-    tree.heading("notes",      text="Notes", anchor="w")
-    tree.heading("owned",      text="Owned" + SORT_ICONS[None], anchor="w",
+    tree.heading("notes",      text=t("col_notes"), anchor="w")
+    tree.heading("owned",      text=t("col_owned") + SORT_ICONS[None], anchor="w",
                  command=lambda: app._on_sort_click("owned"))
 
     tree.column("game",       width=220, minwidth=130, stretch=False)
@@ -152,7 +153,7 @@ def apply_columns(tree, tab, sort_col, sort_asc):
         tree.column("notes", width=480, minwidth=180)
     else:
         tree.column("status", width=120, minwidth=90, stretch=False)
-        tree.heading("status", text="Statut" + SORT_ICONS[
+        tree.heading("status", text=t("col_status") + SORT_ICONS[
             sort_asc if sort_col == "status" else None])
         tree.column("game",  width=220, minwidth=130)
         tree.column("notes", width=430, minwidth=160)
@@ -160,9 +161,9 @@ def apply_columns(tree, tab, sort_col, sort_asc):
 
 def update_heading_icons(tree, tab, sort_col, sort_asc):
     is_core = tab == "Core Verified"
-    cols_labels = {"game": "Jeu", "poptracker": "PopTracker", "owned": "Owned"}
+    cols_labels = {"game": t("col_game"), "poptracker": t("col_poptracker"), "owned": t("col_owned")}
     if not is_core:
-        cols_labels["status"] = "Statut"
+        cols_labels["status"] = t("col_status")
     for col, label in cols_labels.items():
         icon = SORT_ICONS[sort_asc] if sort_col == col else SORT_ICONS[None]
         tree.heading(col, text=label + icon)
@@ -246,4 +247,4 @@ def refresh_table(tree, app):
                     values=(name, status, pt_txt, notes, owned_txt),
                     tags=tags)
 
-    app._count_lbl.config(text=f"{len(filtered)} jeux")
+    app._count_lbl.config(text=t("count_label", n=len(filtered)))

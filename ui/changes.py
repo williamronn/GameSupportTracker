@@ -3,6 +3,7 @@ from tkinter import ttk
 import webbrowser
 
 from config import BG2, BORDER, TEXT, TEXT_DIM, ACCENT2, YELLOW, STATUS_COLORS
+from lang.l18n import t
 
 
 def build_changes_panel(parent, app):
@@ -16,7 +17,7 @@ def build_changes_panel(parent, app):
     lhdr_top = tk.Frame(lhdr, bg=BG2)
     lhdr_top.pack(fill="x")
 
-    tk.Label(lhdr_top, text="DERNIERS CHANGEMENTS", bg=BG2,
+    tk.Label(lhdr_top, text=t("changes_title"), bg=BG2,
              fg=ACCENT2, font=("Courier New", 9, "bold")).pack(side="left", anchor="w")
 
     toggle_btn = tk.Button(
@@ -26,7 +27,7 @@ def build_changes_panel(parent, app):
         command=app._toggle_left_panel)
     toggle_btn.pack(side="right")
 
-    last_check_lbl = tk.Label(lhdr, text="Jamais vérifié",
+    last_check_lbl = tk.Label(lhdr, text=t("last_check_never"),
                               bg=BG2, fg=TEXT_DIM, font=("Courier New", 8))
     last_check_lbl.pack(anchor="w")
 
@@ -54,7 +55,7 @@ def refresh_changes(inner, changes, register_scroll_fn, scroll_cb):
         w.destroy()
 
     if not changes:
-        tk.Label(inner, text="Aucun changement détecté",
+        tk.Label(inner, text=t("changes_none"),
                  bg=BG2, fg=TEXT_DIM, font=("Courier New", 9),
                  padx=14, pady=10).pack(anchor="w")
         return

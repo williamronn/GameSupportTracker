@@ -1,0 +1,102 @@
+# ── Locale : English ──────────────────────────────────────────────────────────
+# Translation file for Archipelago Tracker
+# Language : English (en)
+
+lang_name: "English"
+lang_code: "en"
+
+# ── Main window ────────────────────────────────────────────────────────────────
+app_title:        "⬡  ARCHIPELAGO TRACKER"
+btn_check:        "⟳  Check for updates"
+btn_checking:     "⟳  Checking..."
+status_ready:     "Ready"
+
+# ── Changes panel (left) ───────────────────────────────────────────────────────
+changes_title:    "LATEST CHANGES"
+changes_none:     "No changes detected"
+changes_added:    "Added"
+changes_removed:  "Removed"
+last_check_never: "Never checked"
+last_check_label: "Last check: {ts}"
+btn_show_changes: "▶ Changes"
+
+# ── Filter bar ─────────────────────────────────────────────────────────────────
+col_game:       "Game"
+col_status:     "Status"
+col_poptracker: "PopTracker"
+col_notes:      "Notes"
+col_owned:      "Owned"
+
+filter_status:  "Status:"
+filter_pt:      "  PopTracker:"
+filter_owned:   "  Owned:"
+filter_all:     "All"
+filter_pt_yes:  " Available"
+filter_pt_no:   " Not available"
+filter_owned_yes: " YES"
+filter_owned_no:  " NO"
+count_label:    "{n} games"
+
+# ── Detail panel (bottom) ──────────────────────────────────────────────────────
+detail_placeholder: "Click a game to see details"
+detail_pt_yes:      " PopTracker: YES"
+detail_pt_no:       " PopTracker: NO"
+detail_release_label: "📦 Release:"
+detail_release_none:  "—"
+detail_release_link:  "{tag}  —  {date}  ↗"
+
+# ── Status bar messages ────────────────────────────────────────────────────────
+status_cache_loaded:    "Cache loaded — {total} games"
+status_no_cache:        "No cache — Click Check!"
+status_fetching_tab:    "Fetching: {tab}..."
+status_fetching_pt:     "Fetching: PopTracker Wiki..."
+status_fetching_steam:  "Fetching: Steam library..."
+status_fetching_releases: "Releases {tab}: {idx}/{total} — {game}..."
+status_done:            "✓ Check done — {n} change(s)"
+status_rate_limited:    "⚠ GitHub rate limit reached — incomplete releases. Add a token in ⚙ Settings."
+
+# ── Change descriptions ────────────────────────────────────────────────────────
+change_release_new:     "New release: {tag}"
+change_release_update:  "Release: {old} → {new}"
+change_status_update:   "{before} → {after}"
+
+# ── Settings window ────────────────────────────────────────────────────────────
+settings_title:         "Settings"
+settings_heading:       "SETTINGS"
+settings_save:          "Save"
+settings_cancel:        "Cancel"
+
+# GitHub
+settings_github_check_label:  "Check GitHub releases on update"
+settings_github_check_hint: >
+  Makes one GitHub API call per game (~400 requests). Disabled by default.
+  Recommended: only enable with a token configured below.
+settings_github_token_label:  "GitHub Personal Access Token"
+settings_github_token_hint: >
+  Required to exceed GitHub API's 60 req/h limit.
+  Scope needed: 'public_repo' (read-only is sufficient).
+settings_github_show:         "Show"
+settings_github_token_link:   "→ Create a token at github.com/settings/tokens"
+
+# Steam
+settings_steam_heading:       "Steam"
+settings_steam_hint:          "Enables the Owned column (games owned on Steam)."
+settings_steam_key_label:     "Steam Web API Key:"
+settings_steam_key_show:      "Show key"
+settings_steam_key_link:      "→ Get a key at steamcommunity.com/dev/apikey"
+settings_steam_ids_label:     "Steam ID(s) — one per line (single account or family):"
+settings_steam_ids_hint:      "Find your Steam ID at: steamidfinder.com"
+settings_steam_cache:         "Current cache: {n} games."
+settings_steam_btn:           "🎮  Refresh Steam"
+settings_steam_loading:       "🎮  Loading..."
+settings_steam_connecting:    "Connecting to Steam..."
+settings_steam_success:       "✓ {n} games detected and saved."
+settings_steam_error:         "✗ Failed — check your API key and Steam IDs."
+settings_steam_missing:       "⚠ API key and at least one Steam ID are required."
+
+# Language
+settings_lang_heading:        "Langue / Language"
+settings_lang_label:          "Interface language:"
+settings_lang_note:           "(restart app to apply)"
+settings_lang_apply:          "Apply"
+settings_lang_saved:          "Language saved"

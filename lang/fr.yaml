@@ -1,0 +1,102 @@
+# ── Locale : Français ─────────────────────────────────────────────────────────
+# Fichier de traduction pour Archipelago Tracker
+# Langue : Français (fr)
+
+lang_name: "Français"
+lang_code: "fr"
+
+# ── Fenêtre principale ─────────────────────────────────────────────────────────
+app_title:        "⬡  ARCHIPELAGO TRACKER"
+btn_check:        "⟳  Vérifier les mises à jour"
+btn_checking:     "⟳  Vérification..."
+status_ready:     "Prêt"
+
+# ── Panneau changements (gauche) ───────────────────────────────────────────────
+changes_title:    "DERNIERS CHANGEMENTS"
+changes_none:     "Aucun changement détecté"
+changes_added:    "Ajouté"
+changes_removed:  "Retiré"
+last_check_never: "Jamais vérifié"
+last_check_label: "Dernier check: {ts}"
+btn_show_changes: "▶ Changements"
+
+# ── Barre de filtres ───────────────────────────────────────────────────────────
+col_game:       "Jeu"
+col_status:     "Statut"
+col_poptracker: "PopTracker"
+col_notes:      "Notes"
+col_owned:      "Owned"
+
+filter_status:  "Statut:"
+filter_pt:      "  PopTracker:"
+filter_owned:   "  Owned:"
+filter_all:     "All"
+filter_pt_yes:  " Disponible"
+filter_pt_no:   " Non disponible"
+filter_owned_yes: " YES"
+filter_owned_no:  " NO"
+count_label:    "{n} jeux"
+
+# ── Panneau détail (bas) ───────────────────────────────────────────────────────
+detail_placeholder: "Cliquez sur un jeu pour voir les détails"
+detail_pt_yes:      " PopTracker: YES"
+detail_pt_no:       " PopTracker: NO"
+detail_release_label: "📦 Release:"
+detail_release_none:  "—"
+detail_release_link:  "{tag}  —  {date}  ↗"
+
+# ── Messages de statut ─────────────────────────────────────────────────────────
+status_cache_loaded:    "Cache chargé — {total} jeux"
+status_no_cache:        "Aucun cache — Cliquez sur Vérifier !"
+status_fetching_tab:    "Récupération: {tab}..."
+status_fetching_pt:     "Récupération: PopTracker Wiki..."
+status_fetching_steam:  "Récupération: bibliothèque Steam..."
+status_fetching_releases: "Releases {tab}: {idx}/{total} — {game}..."
+status_done:            "✓ Check terminé — {n} changement(s)"
+status_rate_limited:    "⚠ Limite GitHub atteinte — releases incomplètes. Ajoutez un token dans ⚙ Paramètres."
+
+# ── Descriptions de changement ─────────────────────────────────────────────────
+change_release_new:     "Nouvelle release: {tag}"
+change_release_update:  "Release: {old} → {new}"
+change_status_update:   "{before} → {after}"
+
+# ── Fenêtre paramètres ─────────────────────────────────────────────────────────
+settings_title:         "Paramètres"
+settings_heading:       "PARAMÈTRES"
+settings_save:          "Enregistrer"
+settings_cancel:        "Annuler"
+
+# GitHub
+settings_github_check_label:  "Vérifier les releases GitHub lors du check"
+settings_github_check_hint: >
+  Effectue un appel API GitHub par jeu (~400 requêtes). Désactivé par défaut.
+  Recommandé : activer uniquement avec un token configuré ci-dessous.
+settings_github_token_label:  "GitHub Personal Access Token"
+settings_github_token_hint: >
+  Nécessaire pour dépasser la limite de 60 req/h de l'API GitHub.
+  Token requis : scope 'public_repo' (lecture seule suffit).
+settings_github_show:         "Afficher"
+settings_github_token_link:   "→ Créer un token sur github.com/settings/tokens"
+
+# Steam
+settings_steam_heading:       "Steam"
+settings_steam_hint:          "Permet d'afficher la colonne Owned (jeux possédés sur Steam)."
+settings_steam_key_label:     "Steam Web API Key :"
+settings_steam_key_show:      "Afficher la clé"
+settings_steam_key_link:      "→ Obtenir une clé sur steamcommunity.com/dev/apikey"
+settings_steam_ids_label:     "Steam ID(s) — un par ligne (compte unique ou famille) :"
+settings_steam_ids_hint:      "Trouver votre Steam ID : steamidfinder.com"
+settings_steam_cache:         "Cache actuel : {n} jeux."
+settings_steam_btn:           "🎮  Actualiser Steam"
+settings_steam_loading:       "🎮  Chargement..."
+settings_steam_connecting:    "Connexion à Steam..."
+settings_steam_success:       "✓ {n} jeux détectés et sauvegardés."
+settings_steam_error:         "✗ Échec — vérifiez la clé et les Steam IDs."
+settings_steam_missing:       "⚠ Clé API et au moins un Steam ID requis."
+
+# Langue
+settings_lang_heading:        "Langue / Language"
+settings_lang_label:          "Langue de l'interface :"
+settings_lang_note:           "(redémarrer l'application pour appliquer)"
+settings_lang_apply:          "Appliquer"
+settings_lang_saved:          "Langue sauvegardée"
