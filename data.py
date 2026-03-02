@@ -159,15 +159,9 @@ def match_poptracker(game_name, poptracker_set):
 
 # ── Steam ──────────────────────────────────────────────────────────────────────
 
-def _normalize_steam(name):
-    """Aggressive normalization for Steam↔sheet name matching."""
-    name = unicodedata.normalize("NFKD", name)
-    name = name.encode("ascii", "ignore").decode("ascii")
+def _normalize_steam(name: str) -> str:
     name = name.lower()
-    name = re.sub(r"\(.*?\)", "", name)
-    name = re.sub(r":.*",     "", name)
     name = re.sub(r"[^a-z0-9 ]", "", name)
-    name = re.sub(r"\s+", " ", name).strip()
     return name
 
 
