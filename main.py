@@ -10,6 +10,7 @@ import threading
 import time
 import webbrowser
 import re
+import unicodedata
 from datetime import datetime
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
@@ -92,7 +93,6 @@ def rows_to_dict(rows, tab_name=""):
     if not rows:
         return {}
 
-    # ── Fixed column layout (confirmed from sheet structure) ──────────────
     # Playable Worlds : A=Game(0)  B=Status(1)  C=APWorld(2)  D=Notes(3)
     # Core Verified   : A=Game(0)  B=Notes(1)   (no APWorld column)
     if tab_name == "Core Verified":
@@ -115,7 +115,6 @@ def rows_to_dict(rows, tab_name=""):
         apworld = _get(idx_apworld)
         notes   = _get(idx_notes)
 
-        # Skip header/info rows
         if status.lower() in ("status", "game", "do not sort"):
             continue
 
@@ -128,9 +127,6 @@ def extract_urls(text):
     return URL_PATTERN.findall(text)
 
 def extract_github_repo(notes, apworld=""):
-    """Extracts (owner, repo) from GitHub URLs in apworld then notes.
-    Ignores pull request URLs (/pull/) as they don't have releases.
-    """
     for text in (apworld, notes):
         if not text:
             continue
@@ -141,14 +137,12 @@ def extract_github_repo(notes, apworld=""):
                 repo  = m.group(2)
                 if repo.endswith(".git"):
                     repo = repo[:-4]
-                # Skip pull request URLs — no releases there
                 if "/pull/" in url:
                     continue
                 return owner, repo
     return None
 
 def fetch_github_release(owner, repo, token=""):
-    """Returns {tag, date, url}, None on error, or 'rate_limited' on 403/429."""
     try:
         api_url = f"https://api.github.com/repos/{owner}/{repo}/releases/latest"
         headers = {
@@ -207,21 +201,17 @@ def _normalize(name):
     n = re.sub(r"\s+", " ", n).strip()
     return n
 
-import unicodedata
-
 def _normalize_steam(name):
-    """Aggressive normalization for Steam↔sheet name matching."""
     name = unicodedata.normalize("NFKD", name)
     name = name.encode("ascii", "ignore").decode("ascii")
     name = name.lower()
-    name = re.sub(r"\(.*?\)", "", name)   # remove (subtitle)
-    name = re.sub(r":.*",     "", name)   # remove : subtitle
+    name = re.sub(r"\(.*?\)", "", name)
+    name = re.sub(r":.*",     "", name)
     name = re.sub(r"[^a-z0-9 ]", "", name)
     name = re.sub(r"\s+", " ", name).strip()
     return name
 
 def fetch_steam_owned(api_key, steam_ids):
-    """Returns set of normalized game names owned across all given Steam IDs."""
     owned = {}
     headers = {"User-Agent": "ArchipelagoTracker/1.0"}
     for sid in steam_ids:
@@ -242,13 +232,6 @@ def fetch_steam_owned(api_key, steam_ids):
         except Exception:
             continue
     return {_normalize_steam(n) for n in owned.values() if n}
-    n = name.lower()
-    for prefix in ["category:", "game:"]:
-        if n.startswith(prefix):
-            n = n[len(prefix):]
-    n = re.sub(r"[:\-_'\"!.,&()]", " ", n)
-    n = re.sub(r"\s+", " ", n).strip()
-    return n
 
 def match_poptracker(game_name, poptracker_set):
     norm = _normalize(game_name)
@@ -310,10 +293,10 @@ class ArchipelagoTracker(tk.Tk):
         self._all_games      = {}
         self._poptracker_set = set()
         self._releases       = {}
-        self._steam_owned    = set()   # normalized Steam game names
+        self._steam_owned    = set()
         _s = load_settings()
-        self._github_token    = _s.get("github_token", "")
-        self._check_releases  = _s.get("check_releases", False)
+        self._github_token   = _s.get("github_token", "")
+        self._check_releases = _s.get("check_releases", False)
         self._filter_var     = tk.StringVar()
         self._tab_var        = tk.StringVar(value="Playable Worlds")
         self._status_filter  = tk.StringVar(value="All")
@@ -324,11 +307,41 @@ class ArchipelagoTracker(tk.Tk):
         self._sort_col = None
         self._sort_asc = None
 
+        # Current mousewheel scroll target
+        self._mw_target = None
+
         self._build_ui()
         self.after(200, self._load_initial)
 
+    # ── Mousewheel routing ────────────────────────────────────────────────────
+    def _on_mousewheel(self, event):
+        """Global handler — delegates to whatever widget the cursor is over."""
+        if self._mw_target:
+            self._mw_target(event)
+
+    def _register_scroll(self, widget, callback):
+        """Make widget (and direct children) set the active scroll target."""
+        widget.bind("<Enter>", lambda e, cb=callback: self._set_mw(cb))
+        widget.bind("<Leave>", lambda e, cb=callback: self._unset_mw(cb))
+
+    def _set_mw(self, cb):
+        self._mw_target = cb
+
+    def _unset_mw(self, cb):
+        if self._mw_target is cb:
+            self._mw_target = None
+
+    def _scroll_changes(self, event):
+        self._changes_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
+    def _scroll_tree(self, event):
+        self._tree.yview_scroll(int(-1 * (event.delta / 120)), "units")
+
     # ── Build UI ──────────────────────────────────────────────────────────────
     def _build_ui(self):
+        # Single global mousewheel listener — routes via _mw_target
+        self.bind_all("<MouseWheel>", self._on_mousewheel)
+
         hdr = tk.Frame(self, bg=ACCENT, height=4)
         hdr.pack(fill="x")
 
@@ -360,7 +373,7 @@ class ArchipelagoTracker(tk.Tk):
 
         tk.Frame(self, bg=BORDER, height=1).pack(fill="x")
 
-        # ── Paned layout (left panel resizable & hideable) ───────────────────
+        # ── Paned layout ─────────────────────────────────────────────────────
         self._paned = tk.PanedWindow(self, orient="horizontal",
                                      bg=BG, sashwidth=5,
                                      sashrelief="flat", sashpad=0,
@@ -408,7 +421,10 @@ class ArchipelagoTracker(tk.Tk):
         self._changes_canvas.configure(yscrollcommand=changes_sb.set)
         self._changes_canvas.pack(side="left", fill="both", expand=True)
         changes_sb.pack(side="right", fill="y")
-        self._changes_inner.bind_all("<MouseWheel>", self._on_mousewheel_changes)
+
+        # Register scroll zones
+        self._register_scroll(self._changes_canvas, self._scroll_changes)
+        self._register_scroll(self._changes_inner,  self._scroll_changes)
 
         # ── Right: Games List ────────────────────────────────────────────────
         right = tk.Frame(self._paned, bg=BG)
@@ -418,18 +434,16 @@ class ArchipelagoTracker(tk.Tk):
         fbar = tk.Frame(right, bg=BG3, pady=6, padx=14)
         fbar.pack(fill="x")
 
-        # Row 1 — tabs + search + show-panel button
         fbar_r1 = tk.Frame(fbar, bg=BG3)
         fbar_r1.pack(fill="x")
 
-        # Button to show left panel when it's hidden
         self._show_left_btn = tk.Button(
             fbar_r1, text="▶ Changements", bg=BG3, fg=TEXT_DIM,
             font=("Courier New", 8), relief="flat", cursor="hand2",
             padx=6, pady=2, activebackground=BG2, activeforeground=TEXT,
             command=self._toggle_left_panel)
         self._show_left_btn.pack(side="left", padx=(0, 8))
-        self._show_left_btn.pack_forget()   # hidden by default (panel visible)
+        self._show_left_btn.pack_forget()
 
         for tab in TABS.keys():
             rb = tk.Radiobutton(fbar_r1, text=tab, variable=self._tab_var,
@@ -453,7 +467,6 @@ class ArchipelagoTracker(tk.Tk):
                                    font=("Courier New", 9))
         self._count_lbl.pack(side="right", padx=8)
 
-        # Row 2 — filter dropdowns
         fbar_r2 = tk.Frame(fbar, bg=BG3)
         fbar_r2.pack(fill="x", pady=(4, 0))
 
@@ -481,12 +494,10 @@ class ArchipelagoTracker(tk.Tk):
                      font=("Courier New", 9)).pack(side="left")
         self._owned_filter.trace_add("write", lambda *a: self._refresh_table())
 
-
         # Table
-        table_frame = tk.Frame(right, bg=BORDER, pady=0, padx=0)
+        table_frame = tk.Frame(right, bg=BORDER)
         table_frame.pack(fill="both", expand=True)
 
-        # Bordure supérieure du tableau
         tk.Frame(table_frame, bg=BORDER, height=1).pack(fill="x", side="top")
 
         inner_table = tk.Frame(table_frame, bg=BG)
@@ -498,8 +509,7 @@ class ArchipelagoTracker(tk.Tk):
                          background=BG, foreground=TEXT,
                          rowheight=31, fieldbackground=BG,
                          borderwidth=0, font=("Courier New", 9),
-                         relief="flat",
-                         separatorcolor=BORDER)
+                         relief="flat")
         style.configure("Custom.Treeview.Heading",
                          background=BG3, foreground=ACCENT2,
                          font=("Courier New", 9, "bold"), relief="flat",
@@ -541,6 +551,8 @@ class ArchipelagoTracker(tk.Tk):
         self._tree.pack(side="left", fill="both", expand=True)
         vsb.pack(side="right", fill="y")
 
+        # Register treeview scroll zone
+        self._register_scroll(self._tree, self._scroll_tree)
 
         for status, color in STATUS_COLORS.items():
             self._tree.tag_configure(status, foreground=color)
@@ -548,7 +560,6 @@ class ArchipelagoTracker(tk.Tk):
         self._tree.tag_configure("new",      background="#1a2e1a")
         self._tree.tag_configure("core_yes", foreground=GREEN)
         self._tree.tag_configure("core_no",  foreground=RED)
-        # Zebra striping — lignes alternées
         self._tree.tag_configure("odd_row",  background="#0d1117")
         self._tree.tag_configure("even_row", background="#161b22")
 
@@ -608,13 +619,11 @@ class ArchipelagoTracker(tk.Tk):
     def _toggle_left_panel(self):
         panes = self._paned.panes()
         if str(self._left_panel) in panes:
-            # Hide: remember width and remove from paned
             self._left_panel_width = self._paned.sash_coord(0)[0]
             self._paned.forget(self._left_panel)
             self._toggle_left_btn.config(text="▶")
             self._show_left_btn.pack(side="left", padx=(0, 8))
         else:
-            # Show: re-insert before right panel
             self._paned.add(self._left_panel, minsize=0,
                             width=getattr(self, "_left_panel_width", 300),
                             before=self._right_panel)
@@ -634,10 +643,6 @@ class ArchipelagoTracker(tk.Tk):
                 self._sort_asc if self._sort_col == "status" else None])
             self._tree.column("game",   width=220, minwidth=130)
             self._tree.column("notes",  width=430, minwidth=160)
-
-    # ── Lignes séparatrices de colonnes ───────────────────────────────────────
-    def _draw_column_separators(self, event=None):
-        pass
 
     # ── Sort Logic ────────────────────────────────────────────────────────────
     def _on_sort_click(self, col):
@@ -680,10 +685,6 @@ class ArchipelagoTracker(tk.Tk):
             return (0 if is_owned else 1, name.lower())
         return name.lower()
 
-    # ── Mouse wheel ───────────────────────────────────────────────────────────
-    def _on_mousewheel_changes(self, event):
-        self._changes_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-
     # ── Initial Load ──────────────────────────────────────────────────────────
     def _load_initial(self):
         cache = load_cache()
@@ -698,7 +699,7 @@ class ArchipelagoTracker(tk.Tk):
             if ts:
                 self._last_check_lbl.config(text=f"Dernier check: {ts}")
             total = sum(len(v) for k, v in cache.items()
-                        if k not in ("_timestamp", "_poptracker", "_releases"))
+                        if k not in ("_timestamp", "_poptracker", "_releases", "_steam_owned"))
             self._set_status(
                 f"Cache chargé — {total} jeux · {len(self._poptracker_set)} avec PopTracker")
         else:
@@ -750,7 +751,6 @@ class ArchipelagoTracker(tk.Tk):
 
             new_cache[tab_name] = current
 
-            # GitHub release fetch — only for Playable Worlds
             old_tab_rels = old_releases.get(tab_name, {})
             new_tab_rels = {}
             if tab_name != "Core Verified" and not rate_limited and self._check_releases:
@@ -769,7 +769,6 @@ class ArchipelagoTracker(tk.Tk):
                     release = fetch_github_release(owner, repo_name, self._github_token)
                     if release == "rate_limited":
                         rate_limited = True
-                        # Preserve all remaining cached releases for this tab
                         for k, v in old_tab_rels.items():
                             if k not in new_tab_rels:
                                 new_tab_rels[k] = v
@@ -789,7 +788,6 @@ class ArchipelagoTracker(tk.Tk):
                             desc, release.get("url", ""),
                         ))
             else:
-                # Rate limited or Core Verified — keep old release data intact
                 new_tab_rels = dict(old_tab_rels)
 
             new_releases[tab_name] = new_tab_rels
@@ -803,7 +801,7 @@ class ArchipelagoTracker(tk.Tk):
             self._poptracker_set = set(cache.get("_poptracker", []))
             new_cache["_poptracker"] = list(self._poptracker_set)
 
-        # Steam owned — not fetched here, use cached value (refresh via ⚙)
+        # Steam — keep cached value, refresh only via ⚙
         self._steam_owned = set(cache.get("_steam_owned", []))
         new_cache["_steam_owned"] = list(self._steam_owned)
 
@@ -851,15 +849,19 @@ class ArchipelagoTracker(tk.Tk):
 
             row = tk.Frame(self._changes_inner, bg=BG2, pady=6, padx=14)
             row.pack(fill="x")
+            # Register each new row for changes scroll
+            self._register_scroll(row, self._scroll_changes)
             top_row = tk.Frame(row, bg=BG2)
             top_row.pack(fill="x")
+            self._register_scroll(top_row, self._scroll_changes)
             tk.Label(top_row, text=icon, bg=BG2,
                      font=("Segoe UI Emoji", 11)).pack(side="left")
             tk.Label(top_row, text="  " + game, bg=BG2, fg=TEXT,
                      font=("Courier New", 9, "bold"),
-                     wraplength=280, justify="left").pack(side="left")
+                     wraplength=260, justify="left").pack(side="left")
             bot_row = tk.Frame(row, bg=BG2)
             bot_row.pack(fill="x")
+            self._register_scroll(bot_row, self._scroll_changes)
             color = YELLOW if icon == "🏷️" else STATUS_COLORS.get(status, TEXT_DIM)
             tk.Label(bot_row, text="   " + tab + " — " + desc,
                      bg=BG2, fg=color, font=("Courier New", 8)).pack(side="left")
@@ -905,8 +907,8 @@ class ArchipelagoTracker(tk.Tk):
                     if status in STATUS_COLORS: continue
                 elif status != sf:
                     continue
-            if pt_filt == " Disponible"    and not has_pt:   continue
-            if pt_filt == " Non disponible" and has_pt:      continue
+            if pt_filt == " Disponible"     and not has_pt:   continue
+            if pt_filt == " Non disponible" and has_pt:       continue
             if owned_filt == " YES"         and not is_owned: continue
             if owned_filt == " NO"          and is_owned:     continue
 
@@ -963,7 +965,6 @@ class ArchipelagoTracker(tk.Tk):
             self._detail_pt.config(text=" PopTracker: NO", fg=RED, cursor="")
             self._detail_pt.unbind("<Button-1>")
 
-        # ── Release info ──────────────────────────────────────────────────
         self._detail_release.unbind("<Button-1>")
         rel = self._releases.get(tab, {}).get(name)
         if rel and rel.get("tag"):
@@ -1049,7 +1050,35 @@ class ArchipelagoTracker(tk.Tk):
 
         tk.Frame(win, bg=ACCENT, height=3).pack(fill="x")
 
-        pad = tk.Frame(win, bg=BG, padx=24, pady=20)
+        # Scrollable container for settings
+        outer = tk.Frame(win, bg=BG)
+        outer.pack(fill="both", expand=True)
+
+        settings_canvas = tk.Canvas(outer, bg=BG, highlightthickness=0, width=560)
+        settings_sb = ttk.Scrollbar(outer, orient="vertical",
+                                    command=settings_canvas.yview)
+        settings_inner = tk.Frame(settings_canvas, bg=BG)
+        settings_inner.bind("<Configure>",
+            lambda e: settings_canvas.configure(
+                scrollregion=settings_canvas.bbox("all")))
+        settings_canvas.create_window((0, 0), window=settings_inner, anchor="nw")
+        settings_canvas.configure(yscrollcommand=settings_sb.set)
+        settings_canvas.pack(side="left", fill="both", expand=True)
+        settings_sb.pack(side="right", fill="y")
+
+        # Mousewheel for settings — scoped to this window only
+        def _settings_scroll(event):
+            settings_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        settings_canvas.bind("<Enter>",
+            lambda e: win.bind("<MouseWheel>", _settings_scroll))
+        settings_canvas.bind("<Leave>",
+            lambda e: win.unbind("<MouseWheel>"))
+        settings_inner.bind("<Enter>",
+            lambda e: win.bind("<MouseWheel>", _settings_scroll))
+        settings_inner.bind("<Leave>",
+            lambda e: win.unbind("<MouseWheel>"))
+
+        pad = tk.Frame(settings_inner, bg=BG, padx=24, pady=20)
         pad.pack(fill="both", expand=True)
 
         tk.Label(pad, text="PARAMÈTRES", bg=BG, fg=ACCENT2,
@@ -1090,7 +1119,6 @@ class ArchipelagoTracker(tk.Tk):
                                width=48, show="•")
         token_entry.pack(side="left", ipady=5, padx=(0, 6))
 
-        # Toggle visibility
         show_var = tk.BooleanVar(value=False)
         def _toggle_show():
             token_entry.config(show="" if show_var.get() else "•")
@@ -1099,7 +1127,6 @@ class ArchipelagoTracker(tk.Tk):
                        bg=BG, fg=TEXT_DIM, selectcolor=BG3,
                        activebackground=BG, font=("Courier New", 8)).pack(side="left")
 
-        # Link to create token
         lnk = tk.Label(pad,
                         text="→ Créer un token sur github.com/settings/tokens",
                         bg=BG, fg=ACCENT2, font=("Courier New", 8, "underline"),
@@ -1155,7 +1182,6 @@ class ArchipelagoTracker(tk.Tk):
                  text="Trouver votre Steam ID : steamidfinder.com",
                  bg=BG, fg=TEXT_DIM, font=("Courier New", 8)).pack(anchor="w")
 
-        # ── Steam refresh button ──────────────────────────────────────────
         steam_status_lbl = tk.Label(pad, text="", bg=BG, fg=TEXT_DIM,
                                     font=("Courier New", 8))
         steam_status_lbl.pack(anchor="w", pady=(4, 0))
@@ -1176,9 +1202,9 @@ class ArchipelagoTracker(tk.Tk):
                 def _done():
                     if owned:
                         self._steam_owned = owned
-                        cache = load_cache()
-                        cache["_steam_owned"] = list(owned)
-                        save_cache(cache)
+                        c = load_cache()
+                        c["_steam_owned"] = list(owned)
+                        save_cache(c)
                         steam_status_lbl.config(
                             text="✓ " + str(len(owned)) + " jeux détectés et sauvegardés.",
                             fg=GREEN)
@@ -1229,6 +1255,12 @@ class ArchipelagoTracker(tk.Tk):
                   bg=BG3, fg=TEXT_DIM, font=("Courier New", 9),
                   relief="flat", padx=14, pady=5, cursor="hand2",
                   activebackground=BG3, activeforeground=TEXT).pack(side="right", padx=(0, 8))
+
+        # Size window to fit content
+        win.update_idletasks()
+        h = min(settings_inner.winfo_reqheight() + 40,
+                int(self.winfo_screenheight() * 0.80))
+        win.geometry(f"610x{h}")
 
     # ── Status bar ────────────────────────────────────────────────────────────
     def _set_status(self, msg):
