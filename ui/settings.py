@@ -144,7 +144,7 @@ def open_settings(app):
 
     if app._steam_owned:
         steam_status_lbl.config(
-            text=t("settings_steam_cache", n=len(app._steam_owned)), fg=TEXT_DIM)
+            text=t("settings_steam_cache", n=_s.get("steam_game_count", len(app._steam_owned))), fg=TEXT_DIM)
 
     def _do_steam_refresh(btn):
         key = steam_key_var.get().strip()
@@ -158,15 +158,18 @@ def open_settings(app):
         steam_status_lbl.config(text=t("settings_steam_connecting"), fg=TEXT_DIM)
 
         def _thread():
-            owned = fetch_steam_owned(key, ids)
+            owned_variants, game_count = fetch_steam_owned(key, ids)
             def _done():
-                if owned:
-                    app._steam_owned = owned
+                if owned_variants:
+                    app._steam_owned = owned_variants
                     c = load_cache()
-                    c["_steam_owned"] = list(owned)
+                    c["_steam_owned"] = list(owned_variants)
                     save_cache(c)
+                    s = load_settings()
+                    s["steam_game_count"] = game_count
+                    save_settings(s)
                     steam_status_lbl.config(
-                        text=t("settings_steam_success", n=len(owned)),
+                        text=t("settings_steam_success", n=game_count),
                         fg=GREEN)
                     app._refresh_table()
                 else:

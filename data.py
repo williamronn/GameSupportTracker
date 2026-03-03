@@ -190,8 +190,8 @@ def _normalize_steam(name: str) -> set[str]:
     # → évite les faux positifs ("Hades" -> "h", "Hollow Knight" -> "hk")
     STOP = {"a", "an", "the", "of", "vs", "vs.", "and", "&", "in", "on", "at", "to", "for"}
     words = [w for w in re.sub(r"[^a-zA-Z0-9 ]", " ", clean).split()
-             if w.lower() not in STOP]
-    if len(words) >= 4:
+             if w.lower() not in STOP and w[0].isalpha()]  # exclut les mots commençant par un chiffre
+    if len(words) >= 3:
         acronym = "".join(w[0] for w in words).lower()
         if len(acronym) >= 3:
             variants.add(acronym)
@@ -223,14 +223,12 @@ def fetch_steam_owned(api_key, steam_ids):
 
     # Construit un set "à plat" de toutes les variantes -> pour lookup rapide
     all_variants: set[str] = set()
-    variant_map: dict[str, str] = {}  # variante -> nom original (optionnel, pour debug)
     for name in owned.values():
         if name:
             for v in _normalize_steam(name):
                 all_variants.add(v)
-                variant_map[v] = name
-    print(all_variants)
-    return all_variants
+
+    return all_variants, len(owned)
 
 
 def is_owned_on_steam(sheet_name: str, steam_variants: set[str]) -> bool:
