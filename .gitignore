@@ -7,6 +7,8 @@ dist/
 __pycache__/
 *.py[cod]
 *.pyo
+/lang/__pycache__
+/ui/__pycache__
 
 # Cache applicatif
 cache.json
