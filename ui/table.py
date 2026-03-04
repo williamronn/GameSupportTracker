@@ -26,7 +26,7 @@ def build_filter_bar(parent, app):
     app._show_left_btn.pack(side="left", padx=(0, 8))
     app._show_left_btn.pack_forget()
 
-    # Tab "All Games" en premier
+    # Tab "All Games" first
     rb_all = tk.Radiobutton(r1, text=t("tab_all_games"), variable=app._tab_var,
                             value="All Games", command=app._on_tab_change,
                             bg=BG3, fg=TEXT, selectcolor=BG3,
@@ -58,14 +58,21 @@ def build_filter_bar(parent, app):
                          font=("Courier New", 9))
     count_lbl.pack(side="right", padx=8)
 
+    # Edit owned button — same visual style as tab radiobuttons (indicatoron=False)
+    app._edit_owned_btn = tk.Button(
+        r1, text=t("btn_edit_owned"), bg=BG3, fg=TEXT,
+        font=("Courier New", 9, "bold"), relief="raised", bd=1, cursor="hand2",
+        padx=10, pady=4, activebackground=BG3, activeforeground=ACCENT2,
+        command=app._toggle_edit_owned)
+    app._edit_owned_btn.pack(side="right", padx=(0, 4))
+
     # Row 2 — dropdowns
     r2 = tk.Frame(fbar, bg=BG3)
     r2.pack(fill="x", pady=(4, 0))
 
     tk.Label(r2, text=t("filter_status"), bg=BG3, fg=TEXT_DIM,
              font=("Courier New", 9)).pack(side="left", padx=(0, 4))
-    _status_values_base = [t("filter_all")] + list(STATUS_COLORS.keys())
-    _status_values_all  = [t("filter_all")] + list(STATUS_COLORS.keys()) + ["Core Verified"]
+    _status_values_all = [t("filter_all")] + list(STATUS_COLORS.keys()) + ["Core Verified"]
     app._status_combo = ttk.Combobox(r2, textvariable=app._status_filter,
                  values=_status_values_all,
                  state="readonly", width=16,
@@ -153,7 +160,35 @@ def build_tree(parent, app):
     tree.tag_configure("odd_row",  background="#0d1117")
     tree.tag_configure("even_row", background="#161b22")
 
+    # Click handler for edit-owned mode
+    tree.bind("<Button-1>", lambda e: _on_tree_click(e, tree, app))
+
     return tree
+
+
+def _on_tree_click(event, tree, app):
+    """Handle clicks in edit-owned mode to toggle ownership."""
+    if not app._edit_owned_mode:
+        return
+    region = tree.identify_region(event.x, event.y)
+    if region != "cell":
+        return
+    col = tree.identify_column(event.x)
+    if col != "#5":  # owned column
+        return
+    row_id = tree.identify_row(event.y)
+    if not row_id:
+        return
+    values = tree.item(row_id, "values")
+    if not values:
+        return
+    game_name = values[0]
+    app.toggle_manual_owned(game_name)
+    # Update the cell display immediately
+    is_owned = game_name in app._manual_owned
+    new_values = list(values)
+    new_values[4] = "☑" if is_owned else "☐"
+    tree.item(row_id, values=new_values)
 
 
 def apply_columns(tree, tab, sort_col, sort_asc):
@@ -200,12 +235,13 @@ def refresh_table(tree, app):
     for item in tree.get_children():
         tree.delete(item)
 
-    tab   = app._tab_var.get()
+    tab = app._tab_var.get()
+    edit_mode = app._edit_owned_mode
 
-    # All Games : fusion de tous les tabs (Playable Worlds + Core Verified)
+    # All Games: merge all tabs
     if tab == "All Games":
         games = {}
-        source_map = {}  # game_name -> tab d'origine
+        source_map = {}
         for tab_name in TABS.keys():
             tab_data = app._all_games.get(tab_name, {})
             if isinstance(tab_data, dict):
@@ -228,6 +264,9 @@ def refresh_table(tree, app):
     new_names   = {e[2] for e in app._changes if e[0] == "➕" and (is_all or e[1] == tab)}
     is_core     = tab == "Core Verified"
 
+    yes_txt = t("cell_yes")
+    no_txt  = t("cell_no")
+
     filtered = []
     for name, data in games.items():
         if not isinstance(data, dict):
@@ -235,7 +274,9 @@ def refresh_table(tree, app):
         status   = data.get("status", "")
         notes    = data.get("notes",  "")
         has_pt   = match_poptracker(name, app._poptracker_set)
-        is_owned = is_owned_on_steam(name, app._steam_owned)
+        # Owned = Steam OR manual
+        is_owned = (is_owned_on_steam(name, app._steam_owned)
+                    or name in app._manual_owned)
         src      = source_map.get(name, "")
 
         if query and query not in name.lower() \
@@ -264,8 +305,12 @@ def refresh_table(tree, app):
     for idx, (name, data, has_pt, is_owned, src) in enumerate(filtered):
         status    = data.get("status", "")
         notes     = data.get("notes",  "")
-        pt_txt    = "YES" if has_pt   else "NO"
-        owned_txt = "YES" if is_owned else "NO"
+        pt_txt    = yes_txt if has_pt   else no_txt
+
+        if edit_mode:
+            owned_txt = "☑" if is_owned else "☐"
+        else:
+            owned_txt = yes_txt if is_owned else no_txt
 
         row_is_core = (tab == "Core Verified") or (is_all and src == "Core Verified" and not status)
         if row_is_core:
@@ -283,11 +328,10 @@ def refresh_table(tree, app):
 
     app._count_lbl.config(text=t("count_label", n=len(filtered)))
 
-    # Mettre à jour les valeurs du filtre Status selon le tab
+    # Update status filter values based on active tab
     if hasattr(app, "_status_combo"):
         base   = [t("filter_all")] + list(STATUS_COLORS.keys())
         values = base + ["Core Verified"] if tab == "All Games" else base
         app._status_combo.config(values=values)
-        # Réinitialiser si la valeur actuelle n'est plus valide
         if app._status_filter.get() == "Core Verified" and tab != "All Games":
             app._status_filter.set(t("filter_all"))

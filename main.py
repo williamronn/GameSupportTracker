@@ -44,10 +44,13 @@ class GameSupportTracker(tk.Tk):
         self._poptracker_set = set()
         self._releases       = {}
         self._steam_owned    = set()
+        self._manual_owned   = set()   # games owned manually by the user
 
         _s = load_settings()
         self._github_token   = _s.get("github_token", "")
         self._check_releases = _s.get("check_releases", False)
+        # Load manual owned list
+        self._manual_owned   = set(_s.get("manual_owned", []))
 
         self._filter_var    = tk.StringVar()
         self._tab_var       = tk.StringVar(value="All Games")
@@ -55,9 +58,13 @@ class GameSupportTracker(tk.Tk):
         self._pt_filter     = tk.StringVar(value="All")
         self._owned_filter  = tk.StringVar(value="All")
         self._checking      = False
+        self._cancel_flag   = threading.Event()
 
         self._sort_col = None
         self._sort_asc = None
+
+        # Editing mode for manual owned
+        self._edit_owned_mode = False
 
         # Mousewheel routing
         self._mw_target = None
@@ -91,13 +98,33 @@ class GameSupportTracker(tk.Tk):
 
         top = tk.Frame(self, bg=BG, pady=16, padx=20)
         top.pack(fill="x")
+
+        # Title on the left
         tk.Label(top, text=t("app_title"),
                  bg=BG, fg=TEXT, font=("Courier New", 18, "bold")).pack(side="left")
 
+        # ⚙ button right after the title (gap with padx)
+        tk.Button(top, text="⚙", command=lambda: open_settings(self),
+                  bg=BG, fg=TEXT_DIM, font=("Courier New", 12), relief="flat",
+                  padx=8, pady=4, cursor="hand2",
+                  activebackground=BG3, activeforeground=TEXT
+                  ).pack(side="left", padx=(12, 0))
+
+        # Status bar on the right
         self._status_bar = tk.Label(top, text=t("status_ready"), bg=BG, fg=TEXT_DIM,
                                     font=("Courier New", 10))
         self._status_bar.pack(side="right", padx=10)
 
+        # Cancel button (hidden by default)
+        self._cancel_btn = tk.Button(
+            top, text=t("btn_cancel"),
+            command=self._cancel_check,
+            bg=BG3, fg=TEXT_DIM, font=("Courier New", 10, "bold"),
+            relief="flat", padx=10, pady=6, cursor="hand2",
+            activebackground="#2d2d2d", activeforeground=TEXT)
+        # Not packed initially
+
+        # Check button
         self._check_btn = tk.Button(
             top, text=t("btn_check"),
             command=self._start_check,
@@ -105,12 +132,6 @@ class GameSupportTracker(tk.Tk):
             relief="flat", padx=14, pady=6, cursor="hand2",
             activebackground=ACCENT2, activeforeground="white")
         self._check_btn.pack(side="right")
-
-        tk.Button(top, text="⚙", command=lambda: open_settings(self),
-                  bg=BG, fg=TEXT_DIM, font=("Courier New", 12), relief="flat",
-                  padx=8, pady=4, cursor="hand2",
-                  activebackground=BG3, activeforeground=TEXT
-                  ).pack(side="right", padx=(0, 4))
 
         tk.Frame(self, bg=BORDER, height=1).pack(fill="x")
 
@@ -198,20 +219,53 @@ class GameSupportTracker(tk.Tk):
         refresh_changes(self._changes_inner, self._changes,
                         self._register_scroll, self._scroll_changes)
 
+    # ── Edit owned mode ────────────────────────────────────────────────────────
+    def _toggle_edit_owned(self):
+        self._edit_owned_mode = not self._edit_owned_mode
+        if self._edit_owned_mode:
+            self._edit_owned_btn.config(
+                text=t("btn_edit_owned_done"),
+                fg=ACCENT2, relief="sunken")
+        else:
+            self._edit_owned_btn.config(
+                text=t("btn_edit_owned"),
+                fg=TEXT, relief="raised")
+            from cache import load_settings, save_settings
+            s = load_settings()
+            s["manual_owned"] = list(self._manual_owned)
+            save_settings(s)
+        self._refresh_table()
+
+    def toggle_manual_owned(self, game_name):
+        """Called from table when a checkbox in edit mode is clicked."""
+        if game_name in self._manual_owned:
+            self._manual_owned.discard(game_name)
+        else:
+            self._manual_owned.add(game_name)
+
     # ── Row select ─────────────────────────────────────────────────────────────
     def _on_row_select(self, event):
         sel = self._tree.selection()
         if not sel:
             return
         values = self._tree.item(sel[0], "values")
-        if not values or len(values) < 6:
+        if not values or len(values) < 2:
             return
         name, status = values[0], values[1]
-        # Retrieve original data (preserves newlines in apworld/notes)
         tab = self._tab_var.get()
-        game_data = self._all_games.get(tab, {}).get(name, {})
-        notes   = game_data.get("notes", "") if isinstance(game_data, dict) else values[4]
-        apworld = game_data.get("apworld", "") if isinstance(game_data, dict) else values[3]
+        # Try to find game data across all tabs if needed
+        game_data = {}
+        if tab == "All Games":
+            for tab_name in TABS.keys():
+                d = self._all_games.get(tab_name, {})
+                if isinstance(d, dict) and name in d:
+                    game_data = d[name]
+                    tab = tab_name
+                    break
+        else:
+            game_data = self._all_games.get(tab, {}).get(name, {})
+        notes   = game_data.get("notes", "")  if isinstance(game_data, dict) else ""
+        apworld = game_data.get("apworld", "") if isinstance(game_data, dict) else ""
         update_detail(self._detail_widgets, name, status, notes,
                       tab, self._releases, self._poptracker_set,
                       apworld=apworld)
@@ -242,8 +296,14 @@ class GameSupportTracker(tk.Tk):
         if self._checking:
             return
         self._checking = True
+        self._cancel_flag.clear()
         self._check_btn.config(state="disabled", text=t("btn_checking"))
+        self._cancel_btn.pack(side="right", padx=(0, 6))
         threading.Thread(target=self._do_check, daemon=True).start()
+
+    def _cancel_check(self):
+        self._cancel_flag.set()
+        self._cancel_btn.config(state="disabled")
 
     def _do_check(self):
         cache        = load_cache()
@@ -254,6 +314,8 @@ class GameSupportTracker(tk.Tk):
         rate_limited = False
 
         for tab_name, gid in TABS.items():
+            if self._cancel_flag.is_set():
+                break
             self._set_status(t("status_fetching_tab", tab=tab_name))
             rows = fetch_tab(tab_name, gid)
             if not rows:
@@ -289,9 +351,14 @@ class GameSupportTracker(tk.Tk):
             old_tab_rels = old_releases.get(tab_name, {})
             new_tab_rels = {}
             if tab_name != "Core Verified" and not rate_limited \
-                    and self._check_releases:
+                    and self._check_releases and not self._cancel_flag.is_set():
                 total = len(current)
                 for idx, (game_name, game_data) in enumerate(current.items()):
+                    if self._cancel_flag.is_set():
+                        for k, v in old_tab_rels.items():
+                            if k not in new_tab_rels:
+                                new_tab_rels[k] = v
+                        break
                     self._set_status(
                         t("status_fetching_releases", tab=tab_name, idx=idx+1, total=total, game=game_name))
                     repo = extract_github_repo(
@@ -331,14 +398,15 @@ class GameSupportTracker(tk.Tk):
 
             new_releases[tab_name] = new_tab_rels
 
-        self._set_status("Récupération: PopTracker Wiki...")
-        pt_set = fetch_poptracker_games()
-        if pt_set:
-            self._poptracker_set     = pt_set
-            new_cache["_poptracker"] = list(pt_set)
-        else:
-            self._poptracker_set     = set(cache.get("_poptracker", []))
-            new_cache["_poptracker"] = list(self._poptracker_set)
+        if not self._cancel_flag.is_set():
+            self._set_status(t("status_fetching_pt"))
+            pt_set = fetch_poptracker_games()
+            if pt_set:
+                self._poptracker_set     = pt_set
+                new_cache["_poptracker"] = list(pt_set)
+            else:
+                self._poptracker_set     = set(cache.get("_poptracker", []))
+                new_cache["_poptracker"] = list(self._poptracker_set)
 
         # Steam — refresh only via ⚙, keep cache
         self._steam_owned         = set(cache.get("_steam_owned", []))
@@ -346,24 +414,38 @@ class GameSupportTracker(tk.Tk):
 
         new_cache["_releases"] = new_releases
         self._releases         = new_releases
-        save_cache(new_cache)
-        self._all_games = new_cache
-        self._changes   = changes
-        self.after(0, lambda: self._on_check_done(rate_limited))
 
-    def _on_check_done(self, rate_limited=False):
+        if not self._cancel_flag.is_set():
+            save_cache(new_cache)
+            self._all_games = new_cache
+            self._changes   = changes
+        else:
+            # Partial: keep old game data but update what we fetched
+            for tab_name in TABS.keys():
+                if tab_name in new_cache:
+                    cache[tab_name] = new_cache[tab_name]
+            cache["_releases"] = new_releases
+            self._all_games = cache
+
+        self.after(0, lambda: self._on_check_done(rate_limited, self._cancel_flag.is_set()))
+
+    def _on_check_done(self, rate_limited=False, cancelled=False):
         self._checking = False
         self._check_btn.config(state="normal", text=t("btn_check"))
-        self._last_check_lbl.config(
-            text=t("last_check_label", ts=self._all_games.get('_timestamp', '')))
+        self._cancel_btn.config(state="normal")
+        self._cancel_btn.pack_forget()
+        if not cancelled:
+            self._last_check_lbl.config(
+                text=t("last_check_label", ts=self._all_games.get('_timestamp', '')))
         self._refresh_table()
         self._refresh_changes()
-        n  = len(self._changes)
-        pt = len(self._poptracker_set)
-        if rate_limited:
+        if cancelled:
+            self._set_status(t("status_cancelled"))
+        elif rate_limited:
             self._set_status(t("status_rate_limited"))
         else:
-            self._set_status(t("status_done", n=n, pt=pt))
+            n = len(self._changes)
+            self._set_status(t("status_done", n=n, pt=len(self._poptracker_set)))
 
     # ── Status bar ─────────────────────────────────────────────────────────────
     def _set_status(self, msg):

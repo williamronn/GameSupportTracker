@@ -121,6 +121,8 @@ previously: Archipelago Game Tracker
 - In the settings page, make the Steam IDs input box display fully
 - For the settings page, define a maximum default height
 - For the settings page, allow resizing
+- Add the option to enter game owned manually
+- Dectect game from other platform (Itch.io, epic)
 </details>
 
 <details>
@@ -246,5 +248,7 @@ précedement : Archipelago Game Tracker
 - Dans la page paramètre, faire en sorte que la case contenant les Steam IDs s'affiche en entier
 - Pour la page paramètre, définir une hauteur maximale (par défaut)
 - Pour la page paramètre, permettre de la resize
+- Ajouter la possibilité de rentré manuellement les jeux possédés
+- Détection des jeux sur les autres platforms (Itch.io, epic)
 
 </details>

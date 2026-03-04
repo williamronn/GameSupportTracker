@@ -16,7 +16,9 @@ def open_settings(app):
     win = tk.Toplevel(app)
     win.title(t("settings_title"))
     win.configure(bg=BG)
-    win.resizable(False, False)
+    # Resizable, with a reasonable default size
+    win.resizable(True, True)
+    win.minsize(520, 400)
     win.grab_set()
 
     tk.Frame(win, bg=ACCENT, height=3).pack(fill="x")
@@ -25,15 +27,21 @@ def open_settings(app):
     outer = tk.Frame(win, bg=BG)
     outer.pack(fill="both", expand=True)
 
-    canvas = tk.Canvas(outer, bg=BG, highlightthickness=0, width=560)
+    canvas = tk.Canvas(outer, bg=BG, highlightthickness=0)
     sb = ttk.Scrollbar(outer, orient="vertical", command=canvas.yview)
     inner = tk.Frame(canvas, bg=BG)
+
     inner.bind("<Configure>",
                lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-    canvas.create_window((0, 0), window=inner, anchor="nw")
+    _inner_win = canvas.create_window((0, 0), window=inner, anchor="nw")
     canvas.configure(yscrollcommand=sb.set)
     canvas.pack(side="left", fill="both", expand=True)
     sb.pack(side="right", fill="y")
+
+    # Keep inner frame width in sync with canvas so labels can wrap properly
+    def _on_canvas_resize(event):
+        canvas.itemconfig(_inner_win, width=event.width)
+    canvas.bind("<Configure>", _on_canvas_resize)
 
     def _scroll(event):
         canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
@@ -49,6 +57,21 @@ def open_settings(app):
     tk.Label(pad, text=t("settings_heading"), bg=BG, fg=ACCENT2,
              font=("Courier New", 11, "bold")).pack(anchor="w", pady=(0, 16))
 
+    # ── Wrap helper: labels auto-wrap when window is resized ──────────────
+    def _wrapping_label(parent, text, **kw):
+        """Create a Label that wraps automatically when the window is resized."""
+        lbl = tk.Label(parent, text=text, bg=BG, fg=TEXT_DIM,
+                       font=("Courier New", 8), justify="left",
+                       anchor="w", **kw)
+        lbl.pack(anchor="w", pady=(0, 6), fill="x")
+
+        def _update_wrap(event):
+            # event.width = canvas width; subtract padx*2 + scrollbar margin
+            lbl.config(wraplength=max(200, event.width - 64))
+
+        canvas.bind("<Configure>", _update_wrap, add="+")
+        return lbl
+
     # ── GitHub releases ────────────────────────────────────────────────────
     _section_sep(pad)
     releases_var = tk.BooleanVar(value=app._check_releases)
@@ -59,17 +82,11 @@ def open_settings(app):
                    bg=BG, fg=TEXT, selectcolor=BG3,
                    activebackground=BG, activeforeground=TEXT,
                    font=("Courier New", 9, "bold")).pack(side="left")
-    tk.Label(pad,
-             text=t("settings_github_check_hint"),
-             bg=BG, fg=TEXT_DIM, font=("Courier New", 8),
-             justify="left").pack(anchor="w", pady=(0, 10))
+    _wrapping_label(pad, t("settings_github_check_hint"))
 
     tk.Label(pad, text=t("settings_github_token_label"),
              bg=BG, fg=TEXT, font=("Courier New", 9, "bold")).pack(anchor="w")
-    tk.Label(pad,
-             text=t("settings_github_token_hint"),
-             bg=BG, fg=TEXT_DIM, font=("Courier New", 8),
-             justify="left").pack(anchor="w", pady=(2, 6))
+    _wrapping_label(pad, t("settings_github_token_hint"))
 
     token_var = tk.StringVar(value=app._github_token)
     token_frame = tk.Frame(pad, bg=BG)
@@ -98,10 +115,7 @@ def open_settings(app):
     _section_sep(pad)
     tk.Label(pad, text=t("settings_steam_heading"), bg=BG, fg=TEXT,
              font=("Courier New", 9, "bold")).pack(anchor="w")
-    tk.Label(pad,
-             text=t("settings_steam_hint"),
-             bg=BG, fg=TEXT_DIM, font=("Courier New", 8),
-             justify="left").pack(anchor="w", pady=(2, 8))
+    _wrapping_label(pad, t("settings_steam_hint"))
 
     _s = load_settings()
 
@@ -130,13 +144,17 @@ def open_settings(app):
 
     tk.Label(pad, text=t("settings_steam_ids_label"),
              bg=BG, fg=TEXT_DIM, font=("Courier New", 8)).pack(anchor="w")
+
+    # Steam IDs text area — show full content (no fixed height cap)
+    steam_ids_content = _s.get("steam_ids", "")
+    line_count = max(4, steam_ids_content.count("\n") + 2)
     steam_ids_txt = tk.Text(pad, bg=BG3, fg=TEXT, insertbackground=TEXT,
                             relief="flat", font=("Courier New", 9),
-                            width=48, height=4)
-    steam_ids_txt.insert("1.0", _s.get("steam_ids", ""))
-    steam_ids_txt.pack(anchor="w", pady=(2, 4))
-    tk.Label(pad, text=t("settings_steam_ids_hint"),
-             bg=BG, fg=TEXT_DIM, font=("Courier New", 8)).pack(anchor="w")
+                            width=48, height=line_count)
+    steam_ids_txt.insert("1.0", steam_ids_content)
+    steam_ids_txt.pack(anchor="w", pady=(2, 4), fill="x")
+
+    _wrapping_label(pad, t("settings_steam_ids_hint"))
 
     steam_status_lbl = tk.Label(pad, text="", bg=BG, fg=TEXT_DIM,
                                 font=("Courier New", 8))
@@ -144,7 +162,8 @@ def open_settings(app):
 
     if app._steam_owned:
         steam_status_lbl.config(
-            text=t("settings_steam_cache", n=_s.get("steam_game_count", len(app._steam_owned))), fg=TEXT_DIM)
+            text=t("settings_steam_cache", n=_s.get("steam_game_count", len(app._steam_owned))),
+            fg=TEXT_DIM)
 
     def _do_steam_refresh(btn):
         key = steam_key_var.get().strip()
@@ -210,7 +229,6 @@ def open_settings(app):
         sel_name = lang_var.get()
         for code, name in langs.items():
             if name == sel_name:
-                # persist selection
                 s = load_settings()
                 s["lang"] = code
                 save_settings(s)
@@ -219,7 +237,6 @@ def open_settings(app):
                     set_lang(code)
                 except Exception:
                     pass
-                # show ephemeral confirmation
                 try:
                     confirm_lbl.config(text=t("settings_lang_saved"))
                     win.after(2000, lambda: confirm_lbl.config(text=""))
@@ -238,11 +255,10 @@ def open_settings(app):
                            font=("Courier New", 8))
     confirm_lbl.pack(anchor="w", pady=(2, 0))
 
-    # note restart required
     tk.Label(pad, text=t("settings_lang_note"), bg=BG, fg=TEXT_DIM,
              font=("Courier New", 8)).pack(anchor="w", pady=(2, 0))
 
-    # Save / Cancel buttons are fixed at bottom (outside scrollable area)
+    # ── Save / Cancel (fixed footer) ───────────────────────────────────────
     def _save():
         app._github_token   = token_var.get().strip()
         app._check_releases = releases_var.get()
@@ -251,7 +267,6 @@ def open_settings(app):
         s["check_releases"] = app._check_releases
         s["steam_api_key"]  = steam_key_var.get().strip()
         s["steam_ids"]      = steam_ids_txt.get("1.0", "end").strip()
-        # language choice
         sel_name = lang_var.get()
         for code, name in langs.items():
             if name == sel_name:
@@ -280,10 +295,12 @@ def open_settings(app):
               relief="flat", padx=14, pady=5, cursor="hand2",
               activebackground=BG3, activeforeground=TEXT).pack(side="right", padx=(0, 8))
 
+    # ── Size the window ────────────────────────────────────────────────────
     win.update_idletasks()
-    h = min(inner.winfo_reqheight() + 160,
-            int(app.winfo_screenheight() * 0.80))
-    win.geometry(f"610x{h}")
+    content_h = inner.winfo_reqheight() + 80   # footer + padding
+    screen_h  = app.winfo_screenheight()
+    default_h = min(content_h, int(screen_h * 0.75))
+    win.geometry(f"630x{default_h}")
 
 
 def _section_sep(parent):
