@@ -24,3 +24,7 @@ Thumbs.db
 /build
 /build/main
 main.spec
+/build/main
+/build
+/dist
+main.spec
