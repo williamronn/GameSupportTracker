@@ -1,4 +1,4 @@
-# Changelog — Archipelago Game Tracker
+# Changelog — Game Support Tracker
 
 Toutes les modifications notables de ce projet sont documentées ici.
 
@@ -41,7 +41,7 @@ Toutes les modifications notables de ce projet sont documentées ici.
   - Nettoyage automatique des anciens artefacts de build et des caches `__pycache__`
   - Inclus les dossiers `lang/`, `ui/` et `logo.ico` dans l'exécutable
 - **Installeur Windows `installer.iss`** (Inno Setup) :
-  - Génère `ArchipelagoTrackerSetup.exe` dans `dist/`
+  - Génère `GameSupportTrackerSetup.exe` dans `dist/`
   - Proposé automatiquement à la fin du build (`build.py`)
   - Installation sans droits administrateur (dossier utilisateur)
   - Raccourci bureau optionnel, désinstallation propre

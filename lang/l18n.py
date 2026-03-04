@@ -1,5 +1,5 @@
 """
-i18n.py — Internationalisation pour Archipelago Tracker
+i18n.py — Internationalisation pour Game Support Tracker
 --------------------------------------------------------
 Usage :
     from i18n import t, set_lang, available_langs

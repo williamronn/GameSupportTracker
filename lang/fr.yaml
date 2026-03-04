@@ -1,12 +1,12 @@
 # ── Locale : Français ─────────────────────────────────────────────────────────
-# Fichier de traduction pour Archipelago Tracker
+# Fichier de traduction pour Game Support Tracker
 # Langue : Français (fr)
 
 lang_name: "Français"
 lang_code: "fr"
 
 # ── Fenêtre principale ─────────────────────────────────────────────────────────
-app_title:        "⬡  ARCHIPELAGO TRACKER"
+app_title:        "⬡  GAME SUPPORT TRACKER"
 btn_check:        "⟳  Vérifier les mises à jour"
 btn_checking:     "⟳  Vérification..."
 status_ready:     "Prêt"

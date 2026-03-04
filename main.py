@@ -21,7 +21,7 @@ from ui.settings import open_settings
 from lang.l18n import t
 
 
-class ArchipelagoTracker(tk.Tk):
+class GameSupportTracker(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title(t("app_title"))
@@ -373,7 +373,7 @@ class ArchipelagoTracker(tk.Tk):
 
 if __name__ == "__main__":
     try:
-        app = ArchipelagoTracker()
+        app = GameSupportTracker()
         app.mainloop()
     except Exception as e:
         import traceback

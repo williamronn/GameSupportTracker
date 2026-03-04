@@ -87,7 +87,7 @@ def fetch_github_release(owner, repo, token=""):
     try:
         api_url = f"https://api.github.com/repos/{owner}/{repo}/releases/latest"
         headers = {
-            "User-Agent": "ArchipelagoTracker/1.0",
+            "User-Agent": "GameSupportTracker/1.0",
             "Accept":     "application/vnd.github+json",
         }
         if token:
@@ -135,7 +135,7 @@ def _normalize(name):
 
 def fetch_poptracker_games():
     try:
-        headers = {"User-Agent": "ArchipelagoTracker/1.0"}
+        headers = {"User-Agent": "GameSupportTracker/1.0"}
         r = requests.get(POPTRACKER_API, timeout=15, headers=headers)
         if r.status_code != 200:
             return set()
@@ -202,7 +202,7 @@ def _normalize_steam(name: str) -> set[str]:
 def fetch_steam_owned(api_key, steam_ids):
     """Return dict of {frozenset_of_variants: original_name} owned across all given Steam IDs."""
     owned = {}
-    headers = {"User-Agent": "ArchipelagoTracker/1.0"}
+    headers = {"User-Agent": "GameSupportTracker/1.0"}
     for sid in steam_ids:
         sid = sid.strip()
         if not sid:

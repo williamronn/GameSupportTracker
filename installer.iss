@@ -1,5 +1,5 @@
 ; ============================================================================
-; Inno Setup Script pour Archipelago Game Tracker
+; Inno Setup Script pour Game Support Tracker
 ; ============================================================================
 ; Prérequis : Installer Inno Setup depuis https://jrsoftware.org/isinfo.php
 ;
@@ -10,11 +10,11 @@
 ;      "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer.iss
 ; ============================================================================
 
-#define MyAppName "Archipelago Game Tracker"
+#define MyAppName "Game Support Tracker"
 #define MyAppVersion "1.0.0"
-#define MyAppPublisher "EnzoB"
+#define MyAppPublisher "IUTlago"
 #define MyAppExeName "main.exe"
-#define MyAppURL "https://github.com/EnzoB/ArchipelagoGameTracker"
+#define MyAppURL "https://github.com/EnzoB/GameSupportTracker"
 
 [Setup]
 ; Identifiant unique de l'application (ne pas changer après la première publication)
@@ -29,7 +29,7 @@ DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 ; Dossier de sortie de l'installeur
 OutputDir=dist
-OutputBaseFilename=ArchipelagoTrackerSetup
+OutputBaseFilename=GameSupportTrackerSetup
 ; Icône de l'installeur
 SetupIconFile=logo.ico
 ; Compression maximale

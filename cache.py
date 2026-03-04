@@ -5,9 +5,9 @@ import json
 def get_cache_dir():
     if os.name == "nt":
         base = os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")),
-                            "ArchipelagoTracker")
+                            "GameSupportTracker")
     else:
-        base = os.path.join(os.path.expanduser("~"), ".config", "ArchipelagoTracker")
+        base = os.path.join(os.path.expanduser("~"), ".config", "GameSupportTracker")
     os.makedirs(base, exist_ok=True)
     return base
 

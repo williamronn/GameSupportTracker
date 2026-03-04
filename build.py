@@ -116,7 +116,7 @@ def build():
                 print(" Compilation de l'installeur...")
                 try:
                     subprocess.check_call([iscc, iss_file], cwd=script_dir)
-                    print("\n✅ Installeur créé ! → dist/ArchipelagoTrackerSetup.exe")
+                    print("\n✅ Installeur créé ! → dist/GameSupportTrackerSetup.exe")
                 except subprocess.CalledProcessError:
                     print("\n❌ Erreur lors de la compilation de l'installeur Inno Setup.")
                     print("   Vérifiez les messages ci-dessus pour plus de détails.")

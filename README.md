@@ -1,4 +1,4 @@
-# ⬡ Archipelago Game Tracker
+# ⬡ Game Support Tracker
 
 > Surveille la liste communautaire des APWorlds Archipelago et te notifie des nouveaux jeux ajoutés, des changements de statut et des retraits.
 
@@ -6,14 +6,14 @@
 
 ## ⬇️ Téléchargement
 
-- **Installeur** : télécharge `ArchipelagoTrackerSetup.exe` depuis la page [Releases](https://github.com/EnzoBagnis/ArchipelagoGameTracker/releases/latest) et suis l'assistant d'installation.
+- **Installeur** : télécharge `GameSupportTrackerSetup.exe` depuis la page [Releases](https://github.com/EnzoBagnis/GameSupportTracker/releases/latest) et suis l'assistant d'installation.
 
 
 ---
 
 ## 🚀 Premier lancement
 
-1. **Lance** `ArchipelagoTracker.exe`
+1. **Lance** `GameSupportTracker.exe`
 2. Clique sur **⟳ Vérifier les mises à jour**
 3. L'application récupère les données et les enregistre en cache — c'est ta référence de départ
 4. Le panneau "Derniers changements" affiche `0 changement` → **c'est normal**, il n'y a rien à comparer encore !
@@ -56,7 +56,7 @@ Clique sur l'icône ⚙ pour ouvrir la fenêtre de paramètres. Tu peux y config
 
 ### 🐙 GitHub (releases)
 - **Activer la vérification des releases GitHub** : lors de chaque check, l'app interroge l'API GitHub pour récupérer la dernière release de chaque jeu ayant un lien GitHub dans ses notes.
-- **Token GitHub** : nécessaire pour dépasser la limite de 60 requêtes/heure de l'API publique. Crée un token avec le scope `public_repo` sur [github.com/settings/tokens](https://github.com/settings/tokens/new?description=ArchipelagoTracker&scopes=public_repo).
+- **Token GitHub** : nécessaire pour dépasser la limite de 60 requêtes/heure de l'API publique. Crée un token avec le scope `public_repo` sur [github.com/settings/tokens](https://github.com/settings/tokens/new?description=GameSupportTracker&scopes=public_repo).
 
 ### 🎮 Steam
 - **Clé API Steam** : obtiens-la sur [steamcommunity.com/dev/apikey](https://steamcommunity.com/dev/apikey).
@@ -74,7 +74,7 @@ Clique sur l'icône ⚙ pour ouvrir la fenêtre de paramètres. Tu peux y config
 > Le premier check crée la référence. Les changements apparaissent à partir du second.
 
 **Où est sauvegardé le cache ?**
-> Sauvegardé automatiquement dans `%APPDATA%\ArchipelagoTracker\archipelago_cache.json` (ex: `C:\Users\Enzo\AppData\Roaming\ArchipelagoTracker\`). Ne le supprime pas, sinon tu perds la comparaison.
+> Sauvegardé automatiquement dans `%APPDATA%\GameSupportTracker\archipelago_cache.json` (ex: `C:\Users\Enzo\AppData\Roaming\GameSupportTracker\`). Ne le supprime pas, sinon tu perds la comparaison.
 
 **Besoin d'installer Python ou quoi que ce soit ?**
 > Non. Le `.exe` est autonome, tout est inclus.
@@ -104,7 +104,7 @@ Les données proviennent du [Google Sheets communautaire Archipelago](https://do
 - **Redimensionnement** : la fenêtre principale est redimensionnable, le panneau gauche peut être resizé
 - **Logo** : icône `logo.ico` ajoutée à l'application et à l'exécutable
 - **Script de build** : `build.py` pour compiler l'exe en un clic (PyInstaller) avec choix du fichier source
-- **Installeur Inno Setup** : `installer.iss` pour générer un installeur Windows (`ArchipelagoTrackerSetup.exe`), proposé automatiquement après le build
+- **Installeur Inno Setup** : `installer.iss` pour générer un installeur Windows (`GameSupportTrackerSetup.exe`), proposé automatiquement après le build
 
 ---
 

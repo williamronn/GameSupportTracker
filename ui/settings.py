@@ -92,7 +92,7 @@ def open_settings(app):
     lnk.pack(anchor="w", pady=(4, 0))
     lnk.bind("<Button-1>", lambda e: webbrowser.open(
         "https://github.com/settings/tokens/new"
-        "?description=ArchipelagoTracker&scopes=public_repo"))
+        "?description=GameSupportTracker&scopes=public_repo"))
 
     # ── Steam ──────────────────────────────────────────────────────────────
     _section_sep(pad)

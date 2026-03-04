@@ -1,12 +1,12 @@
 # ── Locale : English ──────────────────────────────────────────────────────────
-# Translation file for Archipelago Tracker
+# Translation file for Game Support Tracker
 # Language : English (en)
 
 lang_name: "English"
 lang_code: "en"
 
 # ── Main window ────────────────────────────────────────────────────────────────
-app_title:        "⬡  ARCHIPELAGO TRACKER"
+app_title:        "⬡  GAME SUPPORT TRACKER"
 btn_check:        "⟳  Check for updates"
 btn_checking:     "⟳  Checking..."
 status_ready:     "Ready"
