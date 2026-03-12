@@ -11,7 +11,8 @@ from config import (
 from cache import load_cache, save_cache, load_settings
 from data import (
     fetch_tab, rows_to_dict, extract_github_repo,
-    fetch_github_release, fetch_poptracker_games
+    fetch_github_release, fetch_poptracker_games,
+    load_alias_table,
 )
 from ui.changes import build_changes_panel, refresh_changes, refresh_history
 from ui.table   import build_filter_bar, build_tree, apply_columns, \
@@ -45,7 +46,9 @@ class GameSupportTracker(tk.Tk):
         self._poptracker_set = set()
         self._releases       = {}
         self._steam_owned    = set()
+        self._steam_bases    = set()
         self._playnite_owned = set()
+        self._playnite_bases = set()
         self._manual_owned   = set()   # games owned manually by the user
 
         _s = load_settings()
@@ -54,6 +57,11 @@ class GameSupportTracker(tk.Tk):
         self._history_limit  = int(_s.get("history_limit", 10))
         # Load manual owned list
         self._manual_owned   = set(_s.get("manual_owned", []))
+
+        # Load alias table if configured
+        _alias_path = _s.get("alias_path", "")
+        if _alias_path:
+            load_alias_table(_alias_path)
 
         self._filter_var    = tk.StringVar()
         self._tab_var       = tk.StringVar(value="All Games")
@@ -285,7 +293,9 @@ class GameSupportTracker(tk.Tk):
             self._poptracker_set    = set(cache.get("_poptracker", []))
             self._releases          = cache.get("_releases", {})
             self._steam_owned       = set(cache.get("_steam_owned", []))
+            self._steam_bases       = set(cache.get("_steam_bases", []))
             self._playnite_owned    = set(cache.get("_playnite_owned", []))
+            self._playnite_bases    = set(cache.get("_playnite_bases", []))
             self._changes_history   = cache.get("_changes_history", [])
             self._refresh_table()
             self._refresh_changes()
@@ -419,11 +429,15 @@ class GameSupportTracker(tk.Tk):
 
         # Steam — refresh only via ⚙, keep cache
         self._steam_owned         = set(cache.get("_steam_owned", []))
+        self._steam_bases         = set(cache.get("_steam_bases", []))
         new_cache["_steam_owned"] = list(self._steam_owned)
+        new_cache["_steam_bases"] = list(self._steam_bases)
 
         # Playnite — refresh only via ⚙, keep cache
         self._playnite_owned         = set(cache.get("_playnite_owned", []))
+        self._playnite_bases         = set(cache.get("_playnite_bases", []))
         new_cache["_playnite_owned"] = list(self._playnite_owned)
+        new_cache["_playnite_bases"] = list(self._playnite_bases)
 
         new_cache["_releases"] = new_releases
         self._releases         = new_releases

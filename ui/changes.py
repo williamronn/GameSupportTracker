@@ -6,6 +6,22 @@ from config import BG, BG2, BG3, BORDER, TEXT, TEXT_DIM, ACCENT2, YELLOW, STATUS
 from lang.l18n import t
 
 
+def _selectable_label(parent, text, bg, fg, font, scroll_cb=None, **kw):
+    """
+    Read-only Text widget that looks exactly like a Label but allows text
+    selection / copy-paste. No border, no editing cursor, no visual diff.
+    """
+    w = tk.Text(parent, height=1, bg=bg, fg=fg, font=font,
+                relief="flat", borderwidth=0, highlightthickness=0,
+                wrap="none", cursor="xterm", state="normal",
+                padx=0, pady=0, **kw)
+    w.insert("1.0", text)
+    w.config(state="disabled")
+    if scroll_cb:
+        w.bind("<MouseWheel>", scroll_cb)
+    return w
+
+
 def build_changes_panel(parent, app):
     """
     Build the left changes panel inside `parent`.
@@ -109,9 +125,11 @@ def _build_change_rows(container, entries, register_scroll_fn, scroll_cb, dim=Fa
         fg_name = TEXT_DIM if dim else TEXT
         tk.Label(top_row, text=icon, bg=bg,
                  font=("Segoe UI Emoji", 11)).pack(side="left")
-        tk.Label(top_row, text="  " + game, bg=bg, fg=fg_name,
-                 font=("Courier New", 9, "bold"),
-                 wraplength=240, justify="left").pack(side="left")
+        name_w = _selectable_label(top_row, "  " + game, bg=bg, fg=fg_name,
+                                   font=("Courier New", 9, "bold"),
+                                   scroll_cb=scroll_cb)
+        name_w.pack(side="left", fill="x", expand=True)
+        register_scroll_fn(name_w, scroll_cb)
 
         bot_row = tk.Frame(row, bg=bg)
         bot_row.pack(fill="x")
@@ -120,8 +138,11 @@ def _build_change_rows(container, entries, register_scroll_fn, scroll_cb, dim=Fa
         color = YELLOW if icon == "🏷️" else STATUS_COLORS.get(status, TEXT_DIM)
         if dim:
             color = TEXT_DIM
-        tk.Label(bot_row, text="   " + tab + " — " + desc,
-                 bg=bg, fg=color, font=("Courier New", 8)).pack(side="left")
+        desc_w = _selectable_label(bot_row, "   " + tab + " — " + desc,
+                                   bg=bg, fg=color, font=("Courier New", 8),
+                                   scroll_cb=scroll_cb)
+        desc_w.pack(side="left", fill="x", expand=True)
+        register_scroll_fn(desc_w, scroll_cb)
 
         if rel_url and not dim:
             lnk = tk.Label(bot_row, text=" ↗", bg=bg, fg=ACCENT2,
@@ -146,11 +167,32 @@ def refresh_changes(inner, changes, register_scroll_fn, scroll_cb):
     _build_change_rows(inner, changes, register_scroll_fn, scroll_cb)
 
 
+def _run_summary(entries):
+    """Return a short summary string like '➕×2  🔄×1  🏷️×1' for a run's entries."""
+    counts = {}
+    for e in entries:
+        icon = e[0]
+        counts[icon] = counts.get(icon, 0) + 1
+    if not counts:
+        return "—"
+    # Canonical order
+    order = ["➕", "➖", "🔄", "🏷️"]
+    parts = []
+    for icon in order:
+        if icon in counts:
+            parts.append(f"{icon}×{counts[icon]}")
+    # Any other icons not in the order
+    for icon, n in counts.items():
+        if icon not in order:
+            parts.append(f"{icon}×{n}")
+    return "  ".join(parts)
+
+
 def refresh_history(hist_inner, hist_canvas, history,
                     register_scroll_fn, scroll_cb):
     """
-    Repopulate the history panel.
-    `history` is a list of dicts (newest first, max 10):
+    Repopulate the history panel with one compact summary row per past run.
+    `history` is a list of dicts (newest first):
       {"ts": "2025-01-01 12:00", "changes": [(icon, tab, game, status, desc, url), ...]}
     """
     for w in hist_inner.winfo_children():
@@ -166,24 +208,26 @@ def refresh_history(hist_inner, hist_canvas, history,
     for run in history:
         ts      = run.get("ts", "")
         entries = run.get("changes", [])
+        summary = _run_summary(entries)
 
-        hdr = tk.Frame(hist_inner, bg=BG3, padx=14, pady=4)
-        hdr.pack(fill="x")
-        register_scroll_fn(hdr, scroll_cb)
+        row = tk.Frame(hist_inner, bg=BG3, padx=14, pady=5)
+        row.pack(fill="x")
+        register_scroll_fn(row, scroll_cb)
 
-        count_txt = t("changes_history_count", n=len(entries)) if entries \
-            else t("changes_none")
-        tk.Label(hdr, text=f"  {ts}  ·  {count_txt}",
-                 bg=BG3, fg=TEXT_DIM, font=("Courier New", 8, "bold")).pack(anchor="w")
+        # Date on the left
+        tk.Label(row, text=ts, bg=BG3, fg=TEXT_DIM,
+                 font=("Courier New", 8)).pack(side="left")
 
-        if entries:
-            _build_change_rows(hist_inner, entries,
-                               register_scroll_fn, scroll_cb, dim=True)
-        else:
-            tk.Label(hist_inner, text=t("changes_none"),
-                     bg=BG3, fg=TEXT_DIM, font=("Courier New", 8),
-                     padx=28, pady=2).pack(anchor="w")
+        # Separator dot
+        tk.Label(row, text="  ·  ", bg=BG3, fg=TEXT_DIM,
+                 font=("Courier New", 8)).pack(side="left")
 
-        tk.Frame(hist_inner, bg=BORDER, height=1).pack(fill="x")
+        # Counters summary
+        summary_lbl = tk.Label(row, text=summary if entries else t("changes_none"),
+                               bg=BG3, fg=TEXT_DIM,
+                               font=("Courier New", 8))
+        summary_lbl.pack(side="left")
+
+        tk.Frame(hist_inner, bg=BORDER, height=1).pack(fill="x", padx=8)
 
     hist_canvas.configure(scrollregion=hist_canvas.bbox("all") or (0, 0, 1, 1))

@@ -164,39 +164,175 @@ def _extract_acronym(name: str) -> str | None:
     match = re.search(r'\(([A-Z]{2,})\)', name)
     return match.group(1).lower() if match else None
 
-def _build_acronym(name: str) -> str:
-    """'Totally Accurate Battle Simulator' -> 'tabs'"""
-    STOP = {"a", "an", "the", "of", "vs", "vs.", "and", "&", "in", "on", "at", "to", "for"}
-    clean = re.sub(r"[^a-zA-Z0-9 ]", " ", name)
-    words = clean.split()
-    return "".join(w[0] for w in words if w.lower() not in STOP).lower()
 
 def _normalize_steam(name: str) -> set[str]:
-    """Retourne un set de variantes normalisées."""
-    # Nom de base sans parenthèses
+    """
+    Returns a set of normalised variants for `name`.
+    Used to build the owned-games lookup set AND to query it.
+
+    Variant types produced:
+      • base       – cleaned lowercase name, no punctuation   (always)
+      • explicit   – acronym written in parens like "(TABS)"  (always when present)
+      • generated  – acronym built from initials              (only for 3+ significant words)
+
+    False-positive guard: a *generated* acronym is only safe when the source
+    name has 3+ significant words.  Short titles like "LIS" or "NMS" produce
+    only a base variant; their base won't collide with a generated acronym
+    because `is_owned_on_*` uses asymmetric matching (see below).
+    """
     clean = re.sub(r'\s*\(.*?\)', '', name).strip()
-    base = re.sub(r"[^a-z0-9 ]", "", clean.lower())
+    base  = re.sub(r"[^a-z0-9 ]", "", clean.lower()).strip()
 
     variants = {base}
 
-    # Acronyme explicite: "Foo Bar (FB)" -> "fb"
-    # Toujours fiable car écrit explicitement par Steam
+    # Explicit acronym in parens — always reliable
     explicit = _extract_acronym(name)
     if explicit:
         variants.add(explicit)
 
-    # Acronyme généré: "Totally Accurate Battle Simulator" -> "tabs"
-    # Seulement si 3+ mots significatifs ET acronyme de 3+ caractères
-    # → évite les faux positifs ("Hades" -> "h", "Hollow Knight" -> "hk")
-    STOP = {"a", "an", "the", "of", "vs", "vs.", "and", "&", "in", "on", "at", "to", "for"}
+    # Generated acronym — only for names with 3+ significant words
+    STOP  = {"a", "an", "the", "of", "vs", "vs.", "and", "&", "in", "on",
+             "at", "to", "for", "is", "be"}
     words = [w for w in re.sub(r"[^a-zA-Z0-9 ]", " ", clean).split()
-             if w.lower() not in STOP and w[0].isalpha()]  # exclut les mots commençant par un chiffre
+             if w.lower() not in STOP and w[0].isalpha()]
     if len(words) >= 3:
         acronym = "".join(w[0] for w in words).lower()
         if len(acronym) >= 3:
             variants.add(acronym)
 
     return variants
+
+
+def _normalize_steam_typed(name: str) -> dict:
+    """
+    Same as _normalize_steam but returns variants split by type:
+      {"base": str, "explicit": str|None, "generated": str|None}
+    Used for asymmetric matching to prevent false positives.
+    """
+    clean    = re.sub(r'\s*\(.*?\)', '', name).strip()
+    base     = re.sub(r"[^a-z0-9 ]", "", clean.lower()).strip()
+    explicit = _extract_acronym(name)
+
+    STOP  = {"a", "an", "the", "of", "vs", "vs.", "and", "&", "in", "on",
+             "at", "to", "for", "is", "be"}
+    words = [w for w in re.sub(r"[^a-zA-Z0-9 ]", " ", clean).split()
+             if w.lower() not in STOP and w[0].isalpha()]
+    generated = None
+    if len(words) >= 3:
+        acr = "".join(w[0] for w in words).lower()
+        if len(acr) >= 3:
+            generated = acr
+
+    return {"base": base, "explicit": explicit, "generated": generated}
+
+
+def _is_match(sheet_name: str, owned_bases: set[str], owned_all: set[str]) -> bool:
+    """
+    Asymmetric match to avoid false positives:
+
+    • sheet base / explicit  →  match against owned_all  (permissive)
+    • sheet generated acronym →  match only against owned_bases  (strict)
+      — this prevents "Life is Strange" (LIS) matching a Steam game called "LIS"
+    """
+    st = _normalize_steam_typed(sheet_name)
+
+    # Base name exact match (e.g. "hollow knight silksong" == "hollow knight silksong")
+    if st["base"] in owned_all:
+        return True
+
+    # Explicit acronym in parens — always reliable
+    if st["explicit"] and st["explicit"] in owned_all:
+        return True
+
+    # Generated acronym — only match against base names, NOT other generated acronyms
+    if st["generated"] and st["generated"] in owned_bases:
+        return True
+
+    return False
+
+
+# ── Alias table ────────────────────────────────────────────────────────────────
+# Maps sheet_name (lowercase) → frozenset of lowercase aliases
+# Built once from aliases.xlsx; queried by is_owned_on_* functions.
+
+_alias_map: dict[str, frozenset[str]] = {}   # sheet_base → {alias_base, ...}
+_alias_path: str = ""
+
+
+def load_alias_table(path: str) -> int:
+    """
+    Read aliases.xlsx and populate the global alias map.
+    Returns the number of rows loaded.
+    Column layout (matches generate_aliases.py):
+      A: Sheet Name  B: Aliases (comma-separated)  C: Done  D: Tab
+    """
+    global _alias_map, _alias_path
+    _alias_map  = {}
+    _alias_path = path
+
+    if not path:
+        return 0
+
+    try:
+        import openpyxl
+        wb = openpyxl.load_workbook(path, data_only=True, read_only=True)
+        ws = wb.active
+        count = 0
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if not row or not row[0]:
+                continue
+            sheet_name = str(row[0]).strip()
+            aliases_raw = str(row[1]).strip() if row[1] else sheet_name
+            if not sheet_name:
+                continue
+            # Normalise each alias the same way as steam names
+            alias_bases: set[str] = set()
+            for alias in aliases_raw.split(","):
+                alias = alias.strip()
+                if alias:
+                    base = re.sub(r"[^a-z0-9 ]", "",
+                                  re.sub(r'\s*\(.*?\)', '', alias).lower()).strip()
+                    if base:
+                        alias_bases.add(base)
+            # Also store the sheet name itself as a base
+            sheet_base = re.sub(r"[^a-z0-9 ]", "",
+                                re.sub(r'\s*\(.*?\)', '', sheet_name).lower()).strip()
+            alias_bases.add(sheet_base)
+            _alias_map[sheet_base] = frozenset(alias_bases)
+            count += 1
+        wb.close()
+        return count
+    except Exception:
+        _alias_map = {}
+        return 0
+
+
+def get_sheet_aliases(sheet_name: str) -> frozenset[str]:
+    """
+    Return all known aliases for a sheet game name (including itself).
+    Falls back to _normalize_steam variants if no alias table is loaded.
+    """
+    if not _alias_map:
+        return frozenset(_normalize_steam(sheet_name))
+    base = re.sub(r"[^a-z0-9 ]", "",
+                  re.sub(r'\s*\(.*?\)', '', sheet_name).lower()).strip()
+    if base in _alias_map:
+        return _alias_map[base]
+    # Not in table — fall back to auto-normalization for this game
+    return frozenset(_normalize_steam(sheet_name))
+
+
+def _is_match_with_aliases(sheet_name: str,
+                            owned_bases: set[str],
+                            owned_all: set[str]) -> bool:
+    """
+    Match using alias table when available, otherwise asymmetric acronym matching.
+    Any alias of the sheet game that appears in owned_all is a hit.
+    """
+    if _alias_map:
+        aliases = get_sheet_aliases(sheet_name)
+        return bool(aliases & owned_all)
+    return _is_match(sheet_name, owned_bases, owned_all)
 
 
 def fetch_steam_owned(api_key, steam_ids):
@@ -221,19 +357,27 @@ def fetch_steam_owned(api_key, steam_ids):
         except Exception:
             continue
 
-    # Construit un set "à plat" de toutes les variantes -> pour lookup rapide
+    # Build variant sets: all_variants for general lookup, bases for acronym guard
     all_variants: set[str] = set()
+    base_variants: set[str] = set()
     for name in owned.values():
         if name:
-            for v in _normalize_steam(name):
-                all_variants.add(v)
+            typed = _normalize_steam_typed(name)
+            base_variants.add(typed["base"])
+            all_variants.add(typed["base"])
+            if typed["explicit"]:
+                all_variants.add(typed["explicit"])
+            if typed["generated"]:
+                all_variants.add(typed["generated"])
 
-    return all_variants, len(owned)
+    return all_variants, base_variants, len(owned)
 
 
-def is_owned_on_steam(sheet_name: str, steam_variants: set[str]) -> bool:
-    """Vérifie si un jeu du sheet est dans les variantes Steam."""
-    return bool(_normalize_steam(sheet_name) & steam_variants)
+def is_owned_on_steam(sheet_name: str, steam_variants: set[str],
+                      steam_bases: set[str] | None = None) -> bool:
+    if steam_bases is None:
+        return bool(_normalize_steam(sheet_name) & steam_variants)
+    return _is_match_with_aliases(sheet_name, steam_bases, steam_variants)
 
 
 # ── Playnite ───────────────────────────────────────────────────────────────────
@@ -338,30 +482,39 @@ def _parse_games_db(db_bytes: bytes) -> list[str]:
     return games
 
 
-def load_playnite_library(path: str) -> tuple[set[str], int]:
+def load_playnite_library(path: str) -> tuple[set[str], set[str], int]:
     """
-    Load a Playnite library from a backup ZIP (produced by
-    Library → Save library data) and return (variants_set, total_count).
-    Returns (set(), 0) on any error.
+    Load a Playnite library from a backup ZIP and return
+    (all_variants, base_variants, total_count).
+    Returns (set(), set(), 0) on any error.
     """
     import zipfile
 
     try:
         with zipfile.ZipFile(path, 'r') as z:
-            # The games database is always at library/games.db inside the ZIP
             with z.open('library/games.db') as f:
                 db_bytes = f.read()
     except Exception:
-        return set(), 0
+        return set(), set(), 0
 
     names = _parse_games_db(db_bytes)
 
-    all_variants: set[str] = set()
+    all_variants:  set[str] = set()
+    base_variants: set[str] = set()
     for name in names:
-        all_variants.update(_normalize_steam(name))
+        typed = _normalize_steam_typed(name)
+        base_variants.add(typed["base"])
+        all_variants.add(typed["base"])
+        if typed["explicit"]:
+            all_variants.add(typed["explicit"])
+        if typed["generated"]:
+            all_variants.add(typed["generated"])
 
-    return all_variants, len(names)
+    return all_variants, base_variants, len(names)
 
 
-def is_owned_on_playnite(sheet_name: str, playnite_variants: set[str]) -> bool:
-    return bool(_normalize_steam(sheet_name) & playnite_variants)
+def is_owned_on_playnite(sheet_name: str, playnite_variants: set[str],
+                         playnite_bases: set[str] | None = None) -> bool:
+    if playnite_bases is None:
+        return bool(_normalize_steam(sheet_name) & playnite_variants)
+    return _is_match_with_aliases(sheet_name, playnite_bases, playnite_variants)

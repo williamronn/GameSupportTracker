@@ -11,6 +11,21 @@ from lang.l18n import t
 URL_PATTERN = re.compile(r'https?://\S+')
 
 
+def _sel_label(parent, text, bg, fg, font, anchor="w", wraplength=0, **kw):
+    """
+    Read-only Text widget styled as a Label: selectable text, no border,
+    no edit cursor visuals. Falls back gracefully on wrap if wraplength given.
+    """
+    # Estimate height from wraplength (rough — 1 line if wraplength generous)
+    w = tk.Text(parent, height=1, bg=bg, fg=fg, font=font,
+                relief="flat", borderwidth=0, highlightthickness=0,
+                wrap="none", cursor="xterm", state="normal",
+                padx=0, pady=0, **kw)
+    w.insert("1.0", text)
+    w.config(state="disabled")
+    return w
+
+
 def build_detail_panel(parent):
     """
     Build the bottom detail panel inside `parent`.
@@ -24,10 +39,10 @@ def build_detail_panel(parent):
     detail_top = tk.Frame(detail, bg=BG2, padx=14, pady=8)
     detail_top.pack(fill="x")
 
-    title_lbl = tk.Label(detail_top,
-                         text=t("detail_placeholder"),
-                         bg=BG2, fg=TEXT_DIM,
-                         font=("Courier New", 10, "bold"), anchor="w")
+    title_lbl = _sel_label(detail_top,
+                           text=t("detail_placeholder"),
+                           bg=BG2, fg=TEXT_DIM,
+                           font=("Courier New", 10, "bold"))
     title_lbl.pack(side="left", fill="x", expand=True)
 
     status_lbl = tk.Label(detail_top, text="", bg=BG2, fg=TEXT,
@@ -46,12 +61,11 @@ def build_detail_panel(parent):
                            fg=TEXT_DIM, font=("Courier New", 9), anchor="w")
     release_lbl.pack(side="left")
 
-    notes_lbl = tk.Label(detail, text="", bg=BG2, fg=TEXT_DIM,
-                         font=("Courier New", 9), anchor="w",
-                         justify="left", wraplength=700, padx=14)
-    notes_lbl.pack(fill="x")
+    notes_lbl = _sel_label(detail, text="", bg=BG2, fg=TEXT_DIM,
+                           font=("Courier New", 9))
+    notes_lbl.pack(fill="x", padx=14)
     detail.bind("<Configure>",
-                lambda e: notes_lbl.config(wraplength=max(200, e.width - 28)))
+                lambda e: None)  # wraplength not needed — Text wraps via width
 
     links_frame = tk.Frame(detail, bg=BG2, padx=14, pady=4)
     links_frame.pack(fill="x")
@@ -66,11 +80,21 @@ def build_detail_panel(parent):
     }
 
 
+def _set_sel_label(widget, text, fg=None):
+    """Update content and optionally color of a selectable (_sel_label) Text widget."""
+    widget.config(state="normal")
+    widget.delete("1.0", "end")
+    widget.insert("1.0", text)
+    if fg:
+        widget.config(fg=fg)
+    widget.config(state="disabled")
+
+
 def update_detail(widgets, name, status, notes, tab, releases, poptracker_set, apworld=""):
     """Populate the detail panel for the selected game."""
     w = widgets
 
-    w["title"].config(text=name, fg=TEXT)
+    _set_sel_label(w["title"], name, fg=TEXT)
     color = STATUS_COLORS.get(status, TEXT_DIM)
     w["status"].config(text="● " + status if status else "", fg=color)
 
@@ -114,7 +138,7 @@ def update_detail(widgets, name, status, notes, tab, releases, poptracker_set, a
         all_plain.append(apworld_plain)
     if plain_text:
         all_plain.append(plain_text)
-    w["notes"].config(text=" • ".join(all_plain) if all_plain else "")
+    _set_sel_label(w["notes"], " • ".join(all_plain) if all_plain else "")
 
     for child in w["links"].winfo_children():
         child.destroy()

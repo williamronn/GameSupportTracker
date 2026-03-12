@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import ttk, filedialog
+import os
 import threading
 import webbrowser
 
@@ -177,12 +178,14 @@ def open_settings(app):
         steam_status_lbl.config(text=t("settings_steam_connecting"), fg=TEXT_DIM)
 
         def _thread():
-            owned_variants, game_count = fetch_steam_owned(key, ids)
+            owned_variants, owned_bases, game_count = fetch_steam_owned(key, ids)
             def _done():
                 if owned_variants:
                     app._steam_owned = owned_variants
+                    app._steam_bases = owned_bases
                     c = load_cache()
                     c["_steam_owned"] = list(owned_variants)
+                    c["_steam_bases"] = list(owned_bases)
                     save_cache(c)
                     s = load_settings()
                     s["steam_game_count"] = game_count
@@ -210,8 +213,10 @@ def open_settings(app):
 
     def _clear_steam():
         app._steam_owned = set()
+        app._steam_bases = set()
         c = load_cache()
         c["_steam_owned"] = []
+        c["_steam_bases"] = []
         save_cache(c)
         s = load_settings()
         s.pop("steam_game_count", None)
@@ -300,12 +305,14 @@ def open_settings(app):
         btn.config(state="disabled", text=t("settings_playnite_loading"))
 
         def _thread():
-            owned_variants, game_count = load_playnite_library(path)
+            owned_variants, owned_bases, game_count = load_playnite_library(path)
             def _done():
                 if owned_variants:
                     app._playnite_owned = owned_variants
+                    app._playnite_bases = owned_bases
                     c = load_cache()
                     c["_playnite_owned"] = list(owned_variants)
+                    c["_playnite_bases"] = list(owned_bases)
                     save_cache(c)
                     s = load_settings()
                     s["playnite_path"]       = path
@@ -333,8 +340,10 @@ def open_settings(app):
 
     def _clear_playnite():
         app._playnite_owned = set()
+        app._playnite_bases = set()
         c = load_cache()
         c["_playnite_owned"] = []
+        c["_playnite_bases"] = []
         save_cache(c)
         s = load_settings()
         s.pop("playnite_game_count", None)
@@ -400,6 +409,86 @@ def open_settings(app):
     tk.Label(pad, text=t("settings_lang_note"), bg=BG, fg=TEXT_DIM,
              font=("Courier New", 8)).pack(anchor="w", pady=(2, 0))
 
+    # ── Aliases file ───────────────────────────────────────────────────────────
+    _section_sep(pad)
+    tk.Label(pad, text=t("settings_alias_heading"), bg=BG, fg=TEXT,
+             font=("Courier New", 9, "bold")).pack(anchor="w")
+    _wrapping_label(pad, t("settings_alias_hint"))
+
+    _s_alias = load_settings()
+    alias_path_var = tk.StringVar(value=_s_alias.get("alias_path", ""))
+    alias_status_lbl = tk.Label(pad, text="", bg=BG, fg=TEXT_DIM,
+                                font=("Courier New", 8))
+
+    alias_row = tk.Frame(pad, bg=BG)
+    alias_row.pack(fill="x", pady=(6, 0))
+
+    tk.Label(alias_row, text=t("settings_alias_path_label"), bg=BG, fg=TEXT_DIM,
+             font=("Courier New", 8), width=10, anchor="w").pack(side="left")
+
+    alias_entry = tk.Entry(alias_row, textvariable=alias_path_var,
+                           bg=BG3, fg=TEXT, insertbackground=TEXT,
+                           relief="flat", font=("Courier New", 9), width=36)
+    alias_entry.pack(side="left", ipady=3, padx=(0, 6))
+
+    def _browse_alias():
+        from tkinter import filedialog
+        path = filedialog.askopenfilename(
+            title=t("settings_alias_browse_title"),
+            filetypes=[("Excel", "*.xlsx"), (t("export_all_files"), "*.*")])
+        if path:
+            alias_path_var.set(path)
+
+    tk.Button(alias_row, text=t("settings_alias_browse"),
+              bg=BG3, fg=TEXT, font=("Courier New", 9),
+              relief="flat", padx=8, pady=3, cursor="hand2",
+              activebackground=ACCENT, activeforeground="white",
+              command=_browse_alias).pack(side="left")
+
+    alias_status_lbl.pack(anchor="w", pady=(2, 0))
+
+    def _load_alias():
+        path = alias_path_var.get().strip()
+        if not path:
+            alias_status_lbl.config(text=t("settings_alias_missing"), fg=YELLOW)
+            return
+        from data import load_alias_table
+        n = load_alias_table(path)
+        if n > 0:
+            alias_status_lbl.config(
+                text=t("settings_alias_success", n=n), fg=GREEN)
+            app._refresh_table()
+        else:
+            alias_status_lbl.config(text=t("settings_alias_error"), fg=RED)
+
+    def _clear_alias():
+        alias_path_var.set("")
+        from data import load_alias_table
+        load_alias_table("")
+        alias_status_lbl.config(text=t("settings_clear_done"), fg=TEXT_DIM)
+        app._refresh_table()
+
+    alias_btn_row = tk.Frame(pad, bg=BG)
+    alias_btn_row.pack(anchor="w", pady=(6, 0))
+
+    tk.Button(alias_btn_row, text=t("settings_alias_btn"),
+              bg=BG3, fg=TEXT, font=("Courier New", 9, "bold"),
+              relief="flat", padx=10, pady=5, cursor="hand2",
+              activebackground=ACCENT, activeforeground="white",
+              command=_load_alias).pack(side="left")
+
+    tk.Button(alias_btn_row, text=t("settings_clear_btn"),
+              bg=BG3, fg=RED, font=("Courier New", 9),
+              relief="flat", padx=10, pady=5, cursor="hand2",
+              activebackground=BG3, activeforeground=RED,
+              command=_clear_alias).pack(side="left", padx=(8, 0))
+
+    if alias_path_var.get():
+        alias_status_lbl.config(
+            text=t("settings_alias_loaded",
+                   path=os.path.basename(alias_path_var.get())),
+            fg=TEXT_DIM)
+
     # ── Changes history ────────────────────────────────────────────────────
     _section_sep(pad)
     tk.Label(pad, text=t("settings_history_heading"), bg=BG, fg=TEXT,
@@ -429,6 +518,7 @@ def open_settings(app):
         s["steam_api_key"]   = steam_key_var.get().strip()
         s["steam_ids"]       = steam_ids_txt.get("1.0", "end").strip()
         s["playnite_path"]   = playnite_path_var.get().strip()
+        s["alias_path"]      = alias_path_var.get().strip()
         try:
             limit = max(1, min(50, int(history_limit_var.get())))
         except (ValueError, tk.TclError):

@@ -58,6 +58,14 @@ def build_filter_bar(parent, app):
                          font=("Courier New", 9))
     count_lbl.pack(side="right", padx=8)
 
+    # Export Excel button
+    tk.Button(
+        r1, text=t("btn_export"), bg=BG3, fg=TEXT_DIM,
+        font=("Courier New", 8), relief="flat", cursor="hand2",
+        padx=6, pady=2, activebackground="#161b22", activeforeground=TEXT,
+        command=lambda: export_to_excel(app)
+    ).pack(side="right", padx=(0, 4))
+
     # Edit owned button — same visual style as tab radiobuttons (indicatoron=False)
     app._edit_owned_btn = tk.Button(
         r1, text=t("btn_edit_owned"), bg=BG3, fg=TEXT,
@@ -161,12 +169,65 @@ def build_tree(parent, app):
     tree.tag_configure("even_row", background="#161b22")
 
     # Click handler for edit-owned mode
-    tree.bind("<Button-1>", lambda e: _on_tree_click(e, tree, app))
+    tree.bind("<Button-1>",   lambda e: _on_tree_click(e, tree, app))
+    # Text selection / copy support
+    tree.bind("<Button-3>",   lambda e: _on_tree_right_click(e, tree, app))
+    tree.bind("<Control-c>",  lambda e: _copy_tree_selection(tree, app))
+    tree.bind("<Control-C>",  lambda e: _copy_tree_selection(tree, app))
 
     return tree
 
 
-def _on_tree_click(event, tree, app):
+def _copy_tree_selection(tree, app):
+    """Copy selected row(s) game name(s) to clipboard (Ctrl+C)."""
+    selected = tree.selection()
+    if not selected:
+        return
+    lines = []
+    for iid in selected:
+        vals = tree.item(iid, "values")
+        if vals:
+            lines.append(vals[0])  # game name
+    if lines:
+        app.clipboard_clear()
+        app.clipboard_append("\n".join(lines))
+
+
+def _on_tree_right_click(event, tree, app):
+    """Show a small context menu to copy cell or row on right-click."""
+    row_id = tree.identify_row(event.y)
+    col    = tree.identify_column(event.x)
+    if not row_id:
+        return
+
+    tree.selection_set(row_id)
+    vals = tree.item(row_id, "values")
+    if not vals:
+        return
+
+    col_idx = int(col.replace("#", "")) - 1
+    cell_val = vals[col_idx] if 0 <= col_idx < len(vals) else ""
+    row_text = "\t".join(str(v) for v in vals)
+
+    menu = tk.Menu(app, tearoff=0, bg="#1f2937", fg="#e5e7eb",
+                   activebackground="#374151", activeforeground="white",
+                   font=("Courier New", 9), bd=0, relief="flat")
+
+    if cell_val:
+        menu.add_command(
+            label=f'Copier "{cell_val[:40]}{"…" if len(cell_val) > 40 else ""}"',
+            command=lambda: (app.clipboard_clear(), app.clipboard_append(cell_val)))
+    menu.add_command(
+        label="Copier la ligne",
+        command=lambda: (app.clipboard_clear(), app.clipboard_append(row_text)))
+
+    try:
+        menu.tk_popup(event.x_root, event.y_root)
+    finally:
+        menu.grab_release()
+
+
+
     """Handle clicks in edit-owned mode to toggle ownership."""
     if not app._edit_owned_mode:
         return
@@ -275,8 +336,10 @@ def refresh_table(tree, app):
         notes    = data.get("notes",  "")
         has_pt   = match_poptracker(name, app._poptracker_set)
         # Owned = Steam OR Playnite OR manual
-        is_owned = (is_owned_on_steam(name, app._steam_owned)
-                    or is_owned_on_playnite(name, app._playnite_owned)
+        is_owned = (is_owned_on_steam(name, app._steam_owned,
+                                       getattr(app, "_steam_bases", None))
+                    or is_owned_on_playnite(name, app._playnite_owned,
+                                            getattr(app, "_playnite_bases", None))
                     or name in app._manual_owned)
         src      = source_map.get(name, "")
 
@@ -336,3 +399,128 @@ def refresh_table(tree, app):
         app._status_combo.config(values=values)
         if app._status_filter.get() == "Core Verified" and tab != "All Games":
             app._status_filter.set(t("filter_all"))
+
+# ── Excel export ───────────────────────────────────────────────────────────────
+
+def export_to_excel(app):
+    """
+    Export the currently visible (filtered + sorted) table rows to an .xlsx file.
+    Opens a Save-As dialog; the exported sheet mirrors the active tab/filters/sort.
+    Uses openpyxl if available, falls back to csv otherwise.
+    """
+    from tkinter import filedialog, messagebox
+    import os
+
+    tree = app._tree
+    tab  = app._tab_var.get()
+
+    # Collect current visible rows from the tree (already filtered + sorted)
+    rows = []
+    for iid in tree.get_children():
+        vals = tree.item(iid, "values")
+        if vals:
+            rows.append(list(vals))
+
+    if not rows:
+        messagebox.showinfo(t("export_empty_title"), t("export_empty_msg"))
+        return
+
+    # Column headers (respect Core Verified tab which hides Status)
+    is_core = tab == "Core Verified"
+    if is_core:
+        headers = [t("col_game"), t("col_poptracker"), t("col_notes"), t("col_owned")]
+        col_indices = [0, 2, 3, 4]
+    else:
+        headers = [t("col_game"), t("col_status"), t("col_poptracker"), t("col_notes"), t("col_owned")]
+        col_indices = [0, 1, 2, 3, 4]
+
+    safe_tab = tab.replace("/", "-").replace("\\", "-")
+    default_name = f"GST_{safe_tab}.xlsx"
+
+    path = filedialog.asksaveasfilename(
+        title=t("export_dialog_title"),
+        defaultextension=".xlsx",
+        filetypes=[("Excel", "*.xlsx"), ("CSV", "*.csv"), (t("export_all_files"), "*.*")],
+        initialfile=default_name,
+    )
+    if not path:
+        return
+
+    try:
+        if path.endswith(".csv"):
+            _export_csv(path, headers, rows, col_indices)
+        else:
+            _export_xlsx(path, headers, rows, col_indices, tab)
+        messagebox.showinfo(t("export_success_title"),
+                            t("export_success_msg", path=os.path.basename(path)))
+    except Exception as exc:
+        messagebox.showerror(t("export_error_title"), str(exc))
+
+
+def _export_csv(path, headers, rows, col_indices):
+    import csv
+    with open(path, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.writer(f)
+        w.writerow(headers)
+        for row in rows:
+            w.writerow([row[i] for i in col_indices])
+
+
+def _export_xlsx(path, headers, rows, col_indices, sheet_name):
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+    except ImportError:
+        # openpyxl not installed → fallback to CSV with .xlsx extension renamed
+        _export_csv(path.replace(".xlsx", ".csv"), headers, rows, col_indices)
+        raise RuntimeError(
+            "openpyxl n'est pas installé. Le fichier a été sauvegardé en CSV. "
+            "Installez openpyxl avec: pip install openpyxl"
+        )
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    safe = sheet_name[:31]  # Excel sheet name max 31 chars
+    ws.title = safe
+
+    # ── Styles ──────────────────────────────────────────────────────────────
+    hdr_font  = Font(name="Courier New", bold=True, color="E5E7EB", size=9)
+    hdr_fill  = PatternFill("solid", fgColor="1F2937")
+    cell_font = Font(name="Courier New", size=9, color="E5E7EB")
+    alt_fill  = PatternFill("solid", fgColor="161B22")
+    base_fill = PatternFill("solid", fgColor="0D1117")
+    thin = Side(style="thin", color="374151")
+    border = Border(bottom=Side(style="thin", color="374151"))
+
+    # ── Header row ──────────────────────────────────────────────────────────
+    for ci, header in enumerate(headers, start=1):
+        cell = ws.cell(row=1, column=ci, value=header)
+        cell.font      = hdr_font
+        cell.fill      = hdr_fill
+        cell.alignment = Alignment(horizontal="left", vertical="center")
+
+    # ── Data rows ───────────────────────────────────────────────────────────
+    for ri, row in enumerate(rows, start=2):
+        fill = base_fill if ri % 2 == 0 else alt_fill
+        for ci, col_i in enumerate(col_indices, start=1):
+            val  = row[col_i] if col_i < len(row) else ""
+            cell = ws.cell(row=ri, column=ci, value=val)
+            cell.font      = cell_font
+            cell.fill      = fill
+            cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=False)
+
+    # ── Column widths (auto-fit to content, capped) ─────────────────────────
+    for ci, header in enumerate(headers, start=1):
+        col_letter = get_column_letter(ci)
+        max_len = len(header)
+        for row in rows:
+            col_i = col_indices[ci - 1]
+            val = str(row[col_i]) if col_i < len(row) else ""
+            max_len = max(max_len, len(val))
+        ws.column_dimensions[col_letter].width = min(max_len + 2, 60)
+
+    # Freeze header row
+    ws.freeze_panes = "A2"
+
+    wb.save(path)
