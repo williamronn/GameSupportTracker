@@ -58,11 +58,11 @@ def build_filter_bar(parent, app):
                          font=("Courier New", 9))
     count_lbl.pack(side="right", padx=8)
 
-    # Export Excel button
+    # Export Excel button — same visual style as Edit Owned button
     tk.Button(
-        r1, text=t("btn_export"), bg=BG3, fg=TEXT_DIM,
-        font=("Courier New", 8), relief="flat", cursor="hand2",
-        padx=6, pady=2, activebackground="#161b22", activeforeground=TEXT,
+        r1, text=t("btn_export"), bg=BG3, fg=TEXT,
+        font=("Courier New", 9, "bold"), relief="raised", bd=1, cursor="hand2",
+        padx=10, pady=4, activebackground=BG3, activeforeground=ACCENT2,
         command=lambda: export_to_excel(app)
     ).pack(side="right", padx=(0, 4))
 
