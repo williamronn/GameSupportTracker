@@ -199,9 +199,11 @@ def refresh_history(hist_inner, hist_canvas, history,
         w.destroy()
 
     if not history:
-        tk.Label(hist_inner, text=t("changes_history_empty"),
-                 bg=BG3, fg=TEXT_DIM, font=("Courier New", 8),
-                 padx=14, pady=8).pack(anchor="w")
+        lbl = tk.Label(hist_inner, text=t("changes_history_empty"),
+                       bg=BG3, fg=TEXT_DIM, font=("Courier New", 8),
+                       padx=14, pady=8)
+        lbl.pack(anchor="w")
+        lbl.bind("<MouseWheel>", scroll_cb)
         hist_canvas.configure(scrollregion=hist_canvas.bbox("all") or (0, 0, 1, 1))
         return
 
@@ -210,24 +212,27 @@ def refresh_history(hist_inner, hist_canvas, history,
         entries = run.get("changes", [])
         summary = _run_summary(entries)
 
-        row = tk.Frame(hist_inner, bg=BG3, padx=14, pady=5)
+        row = tk.Frame(hist_inner, bg=BG3, padx=14, pady=6)
         row.pack(fill="x")
+        row.bind("<MouseWheel>", scroll_cb)
         register_scroll_fn(row, scroll_cb)
 
-        # Date on the left
-        tk.Label(row, text=ts, bg=BG3, fg=TEXT_DIM,
-                 font=("Courier New", 8)).pack(side="left")
+        # Line 1 — date
+        date_lbl = tk.Label(row, text=ts, bg=BG3, fg=TEXT_DIM,
+                            font=("Courier New", 8, "bold"))
+        date_lbl.pack(anchor="w")
+        date_lbl.bind("<MouseWheel>", scroll_cb)
 
-        # Separator dot
-        tk.Label(row, text="  ·  ", bg=BG3, fg=TEXT_DIM,
-                 font=("Courier New", 8)).pack(side="left")
+        # Line 2 — icons summary, indented
+        icons_text = summary if entries else t("changes_none")
+        icons_lbl = tk.Label(row, text="  " + icons_text,
+                             bg=BG3, fg=TEXT_DIM,
+                             font=("Segoe UI Emoji", 9))
+        icons_lbl.pack(anchor="w")
+        icons_lbl.bind("<MouseWheel>", scroll_cb)
 
-        # Counters summary
-        summary_lbl = tk.Label(row, text=summary if entries else t("changes_none"),
-                               bg=BG3, fg=TEXT_DIM,
-                               font=("Courier New", 8))
-        summary_lbl.pack(side="left")
-
-        tk.Frame(hist_inner, bg=BORDER, height=1).pack(fill="x", padx=8)
+        sep = tk.Frame(hist_inner, bg=BORDER, height=1)
+        sep.pack(fill="x", padx=8)
+        sep.bind("<MouseWheel>", scroll_cb)
 
     hist_canvas.configure(scrollregion=hist_canvas.bbox("all") or (0, 0, 1, 1))
